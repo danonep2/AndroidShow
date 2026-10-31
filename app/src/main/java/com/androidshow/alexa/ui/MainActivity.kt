@@ -1,9 +1,12 @@
 package com.androidshow.alexa.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -29,6 +32,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.androidshow.alexa.AlexaService
 import com.androidshow.alexa.auth.LoginActivity
 import com.androidshow.alexa.avs.AvsClient
+import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.auth.Marketplace
 import com.androidshow.alexa.auth.Session
 import com.androidshow.alexa.graph
@@ -67,10 +72,17 @@ class MainActivity : ComponentActivity() {
                         } else {
                             SessionPanel(s, graph.alexa, onLogout = graph.auth::logout)
                         }
+                        TextButton(onClick = ::copyDiagnostics) { Text("Copiar diagnóstico") }
                     }
                 }
             }
         }
+    }
+
+    private fun copyDiagnostics() {
+        val text = DiagLog.read().ifEmpty { "(diagnóstico vazio)" }
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("diagnóstico", text))
+        Toast.makeText(this, "Diagnóstico copiado (${text.length} caracteres)", Toast.LENGTH_SHORT).show()
     }
 }
 

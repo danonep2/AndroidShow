@@ -9,12 +9,15 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.Toast
+import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.graph
 import com.androidshow.alexa.net.Http
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +59,9 @@ class LoginActivity : Activity() {
 
         if (savedInstanceState == null) {
             CookieManager.getInstance().removeAllCookies(null)
-            web.loadUrl(LoginRequest.signInUrl(marketplace, identity))
+            val url = LoginRequest.signInUrl(marketplace, identity)
+            DiagLog.i("login", "início: ${marketplace.name}, deviceType ${DeviceProfile.DEVICE_TYPE}\n$url")
+            web.loadUrl(url)
         } else {
             web.restoreState(savedInstanceState)
         }
@@ -85,14 +90,17 @@ class LoginActivity : Activity() {
         web.stopLoading()
         web.visibility = View.INVISIBLE
         progress.visibility = View.VISIBLE
+        DiagLog.i("login", "authorization code recebido; registrando dispositivo (${marketplace.name}, ${marketplace.apiHost})")
         scope.launch {
             runCatching { graph.auth.completeLogin(marketplace, identity, code) }
                 .onSuccess {
+                    DiagLog.i("login", "registro concluído: ${it.deviceName} / ${it.deviceType}")
                     CookieManager.getInstance().removeAllCookies(null)
                     setResult(RESULT_OK)
                     finish()
                 }
                 .onFailure {
+                    DiagLog.w("login", "falha no registro", it)
                     Toast.makeText(this@LoginActivity, "Falha no registro: ${it.message}", Toast.LENGTH_LONG).show()
                     setResult(RESULT_CANCELED)
                     finish()
@@ -102,13 +110,34 @@ class LoginActivity : Activity() {
 
     private inner class Client : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            DiagLog.i("login", "navegar${if (request.isRedirect) " (redirect)" else ""}: ${request.url}")
             val code = LoginRequest.authorizationCode(request.url.toString()) ?: return false
             onAuthorizationCode(code)
             return true
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+            DiagLog.i("login", "página iniciada: $url")
             LoginRequest.authorizationCode(url)?.let(::onAuthorizationCode)
+        }
+
+        override fun onPageFinished(view: WebView, url: String) {
+            DiagLog.i("login", "página carregada: $url")
+            // Captura mensagens de erro exibidas pela Amazon (caixas de alerta da página de login).
+            view.evaluateJavascript(
+                "(function(){var e=document.querySelectorAll('.a-alert-content,.a-alert-heading,#auth-error-message-box,#auth-warning-message-box');" +
+                    "return Array.prototype.map.call(e,function(x){return x.innerText.trim()}).filter(Boolean).join(' | ')})()"
+            ) { text ->
+                if (text != null && text != "\"\"" && text != "null") DiagLog.w("login", "mensagem na página: $text")
+            }
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (request.isForMainFrame) DiagLog.w("login", "erro ${error.errorCode} '${error.description}' em ${request.url}")
+        }
+
+        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+            if (request.isForMainFrame) DiagLog.w("login", "HTTP ${response.statusCode} em ${request.url}")
         }
     }
 

@@ -30,6 +30,7 @@ object Http {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(com.androidshow.alexa.diag.DiagInterceptor())
         .build()
 }
 

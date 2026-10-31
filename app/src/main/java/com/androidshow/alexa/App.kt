@@ -7,6 +7,7 @@ import com.androidshow.alexa.auth.AuthRepository
 import com.androidshow.alexa.auth.SecureStore
 import com.androidshow.alexa.avs.Attachments
 import com.androidshow.alexa.avs.AvsClient
+import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.show.RemoteImages
 import com.androidshow.alexa.show.ShowModeController
@@ -20,6 +21,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DiagLog.init(this)
         graph = AppGraph(this)
         graph.alexa.start()
     }
