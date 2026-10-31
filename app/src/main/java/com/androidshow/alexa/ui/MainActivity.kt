@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -33,7 +34,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,15 +59,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            MaterialTheme(colorScheme = Palette.colorScheme) {
                 Surface(Modifier.fillMaxSize()) {
                     val session by graph.auth.session.collectAsStateWithLifecycle()
+                    var settings by rememberSaveable { mutableStateOf(false) }
+                    val s = session
+                    if (s != null && !settings) {
+                        HomeScreen(graph.alexa, onSettings = { settings = true })
+                        return@Surface
+                    }
+                    BackHandler(enabled = s != null) { settings = false }
                     Column(
                         Modifier.safeDrawingPadding().padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         Text("AndroidShow", style = MaterialTheme.typography.headlineMedium)
-                        val s = session
                         if (s == null) {
                             LoginPanel { startActivity(LoginActivity.intent(this@MainActivity, it)) }
                         } else {

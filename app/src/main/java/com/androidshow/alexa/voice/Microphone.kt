@@ -79,5 +79,16 @@ class Microphone {
         const val SAMPLE_RATE = 16_000
         const val FRAME_SAMPLES = 1280 // 80 ms
         const val FRAME_MS = 80
+
+        /** Volume do quadro em 0..1 (escala em dB: ~-47 dBFS = 0, ~-11 dBFS = 1), para animações. */
+        fun level(frame: ShortArray): Float {
+            var sum = 0.0
+            for (s in frame) sum += s.toDouble() * s
+            val rms = kotlin.math.sqrt(sum / frame.size).coerceAtLeast(1.0)
+            return (20 * kotlin.math.log10(rms / LEVEL_FLOOR) / LEVEL_RANGE_DB).toFloat().coerceIn(0f, 1f)
+        }
+
+        private const val LEVEL_FLOOR = 150.0
+        private const val LEVEL_RANGE_DB = 36.0
     }
 }

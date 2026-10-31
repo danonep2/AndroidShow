@@ -66,6 +66,14 @@ class AlexaService(
     /** Frase reconhecida pela nuvem (vem no RequestProcessingStarted deste tipo de dispositivo). */
     val utterance: StateFlow<String?> = _utterance.asStateFlow()
 
+    private val _micLevel = MutableStateFlow(0f)
+    /** Volume da voz do usuário enquanto a Alexa escuta (0..1), para a onda da tela inicial. */
+    val micLevel: StateFlow<Float> = _micLevel.asStateFlow()
+    private val levelListener = Microphone.Listener { _micLevel.value = Microphone.level(it) }
+
+    /** Intensidade da fala da Alexa (0..1), para o círculo da tela inicial. */
+    val speechLevel get() = player.level
+
     private val _dialog = MutableStateFlow(Dialog.Idle)
     val dialog: StateFlow<Dialog> = _dialog.asStateFlow()
 
@@ -174,6 +182,7 @@ class AlexaService(
         if (capture != null) return null
         val mic = AudioCapture(microphone, preroll, localEndpointing = localEndpointing, debugCopy = debugAudio)
         capture = mic
+        microphone.add(levelListener)
         _utterance.value = null
         _dialog.value = Dialog.Listening
         val payload = buildJsonObject {
@@ -188,7 +197,10 @@ class AlexaService(
                 append("Erro no Recognize: ${e.message}")
             } finally {
                 mic.stop()
-                if (capture === mic) capture = null
+                if (capture === mic) {
+                    capture = null
+                    stopLevel()
+                }
                 _dialog.update { if (it == Dialog.Listening || it == Dialog.Thinking) Dialog.Idle else it }
             }
         }
@@ -198,8 +210,14 @@ class AlexaService(
         capture?.let {
             it.stop()
             capture = null
+            stopLevel()
             _dialog.value = Dialog.Thinking
         }
+    }
+
+    private fun stopLevel() {
+        microphone.remove(levelListener)
+        _micLevel.value = 0f
     }
 
     private suspend fun handle(d: Directive) {
