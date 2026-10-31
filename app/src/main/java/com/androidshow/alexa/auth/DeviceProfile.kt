@@ -15,5 +15,10 @@ object DeviceProfile {
     const val OS_VERSION = "10.0.26100"               // [Inferido]
     const val SOFTWARE_VERSION = "1"                  // [Inferido]
     const val SDK_VERSION = "6.12.4"                  // [Inferido] versão MAP usada por clientes conhecidos
-    const val DEVICE_NAME = "%FIRST_NAME%'s%DUPE_STRATEGY_1ST%AndroidShow"
+
+    /**
+     * Nome exibido no app Alexa. Precisa ser único na conta: para este tipo de dispositivo a Amazon
+     * não expande `%DUPE_STRATEGY_1ST%` e responde DuplicateDeviceName [Observado].
+     */
+    fun deviceName(model: String, serial: String) = "AndroidShow $model ${serial.takeLast(4)}"
 }

@@ -123,10 +123,11 @@ class LoginActivity : Activity() {
 
         override fun onPageFinished(view: WebView, url: String) {
             DiagLog.i("login", "página carregada: $url")
-            // Captura mensagens de erro exibidas pela Amazon (caixas de alerta da página de login).
+            // Captura mensagens de erro visíveis da Amazon; a página traz vários alertas ocultos de reserva.
             view.evaluateJavascript(
-                "(function(){var e=document.querySelectorAll('.a-alert-content,.a-alert-heading,#auth-error-message-box,#auth-warning-message-box');" +
-                    "return Array.prototype.map.call(e,function(x){return x.innerText.trim()}).filter(Boolean).join(' | ')})()"
+                "(function(){var e=document.querySelectorAll('.a-alert-content,#auth-error-message-box,#auth-warning-message-box');" +
+                    "return Array.prototype.filter.call(e,function(x){return x.offsetParent!==null})" +
+                    ".map(function(x){return x.innerText.trim()}).filter(Boolean).join(' | ')})()"
             ) { text ->
                 if (text != null && text != "\"\"" && text != "null") DiagLog.w("login", "mensagem na página: $text")
             }

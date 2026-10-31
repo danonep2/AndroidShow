@@ -1,5 +1,6 @@
 package com.androidshow.alexa.auth
 
+import android.os.Build
 import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.net.arr
 import com.androidshow.alexa.net.awaitString
@@ -37,7 +38,7 @@ class AuthApi(private val http: OkHttpClient) {
                 put("domain", "Device")
                 put("app_version", DeviceProfile.APP_VERSION)
                 put("device_type", DeviceProfile.DEVICE_TYPE)
-                put("device_name", DeviceProfile.DEVICE_NAME)
+                put("device_name", DeviceProfile.deviceName(Build.MODEL, id.serial))
                 put("os_version", DeviceProfile.OS_VERSION)
                 put("device_serial", id.serial)
                 put("device_model", DeviceProfile.DEVICE_MODEL)
