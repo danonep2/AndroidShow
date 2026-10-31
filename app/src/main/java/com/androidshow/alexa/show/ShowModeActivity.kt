@@ -78,7 +78,7 @@ class ShowModeActivity : ComponentActivity() {
                 ) {
                     Crossfade(screen, label = "screen") { s ->
                         when (s) {
-                            is ShowScreen.Home -> Clock()
+                            is ShowScreen.Home -> HomeScreen(s.cards)
                             is ShowScreen.Card -> TemplateCard(s.template)
                             is ShowScreen.Player -> PlayerCard(s.info)
                             is ShowScreen.Apl -> AplFallback(s)
@@ -114,27 +114,6 @@ class ShowModeActivity : ComponentActivity() {
         } else {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
-    }
-}
-
-@Composable
-private fun Clock() {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(60_000 - now % 60_000)
-        }
-    }
-    val date = Date(now)
-    Column(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(DateFormat.getTimeInstance(DateFormat.SHORT).format(date), fontSize = 120.sp, fontWeight = FontWeight.Light)
-        Text(DateFormat.getDateInstance(DateFormat.FULL).format(date), style = MaterialTheme.typography.headlineSmall, color = Color(0xFFB0B8C4))
-        Text("Toque no microfone e fale com a Alexa", modifier = Modifier.padding(top = 32.dp), color = Color(0xFF6B7380))
     }
 }
 

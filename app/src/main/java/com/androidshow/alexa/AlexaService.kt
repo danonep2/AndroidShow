@@ -109,6 +109,9 @@ class AlexaService(
         }
     }
 
+    /** Envia um evento com o contexto atual (usado pelo modo Show). */
+    suspend fun sendEvent(event: JsonObject) = avs.sendEvent(event)
+
     /** Publica as interfaces suportadas (uma vez por processo); 204 = aceitas. */
     private suspend fun publishCapabilities() {
         if (capabilitiesPublished) return

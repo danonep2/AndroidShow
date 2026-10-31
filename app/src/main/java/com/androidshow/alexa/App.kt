@@ -42,6 +42,7 @@ class AppGraph(val context: Context) {
         RemoteImages.http = http
         alexa.displayHandler = show::handle
         alexa.contextContributors += show::contextItems
+        show.sendEvent = alexa::sendEvent
     }
 }
 
