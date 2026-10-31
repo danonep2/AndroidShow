@@ -75,7 +75,7 @@ class ShowModeActivity : ComponentActivity() {
         }
         // Gesto de voltar (Android 13+ usa OnBackInvoked, que não passa por dispatchKeyEvent).
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() = finish()
+            override fun handleOnBackPressed() = navigateBack()
         })
         val show = graph.show
         val alexa = graph.alexa
@@ -95,7 +95,7 @@ class ShowModeActivity : ComponentActivity() {
                             when (s) {
                                 is ShowScreen.Home ->
                                     if (Apl.ready && s.document != null && s.payload != null) {
-                                        AplDocument(s.document, { if (it == "payload") s.payload else null }) { show.onAplSendEvent("", it) }
+                                        AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
                                     } else {
                                         HomeScreen(s.cards)
                                     }
@@ -109,14 +109,14 @@ class ShowModeActivity : ComponentActivity() {
                                     }
                             }
                         }
-                        // Volta à tela inicial do app. Fica no canto oposto ao do microfone.
+                        // Volta à home do próprio modo Show. Fica no canto oposto ao do microfone.
                         SmallFloatingActionButton(
-                            onClick = ::finish,
+                            onClick = show::goHome,
                             shape = CircleShape,
                             containerColor = Color(0x80000000),
                             contentColor = Color.White,
                             modifier = Modifier.align(Alignment.TopEnd).padding(24.dp),
-                        ) { Icon(Icons.Filled.Home, contentDescription = "Sair do modo Show") }
+                        ) { Icon(Icons.Filled.Home, contentDescription = "Home do modo Show") }
                         FloatingActionButton(
                             onClick = { toggleMic(alexa, dialog) },
                             shape = CircleShape,
@@ -131,15 +131,21 @@ class ShowModeActivity : ComponentActivity() {
     }
 
     /**
-     * O "voltar" sempre fecha o modo Show. A view do APL recebe o foco e consumia a tecla, deixando
-     * o usuário preso; dispatchKeyEvent da Activity roda antes de qualquer view.
+     * O "voltar" é tratado aqui antes de qualquer view: a do APL recebe o foco e consumia a tecla,
+     * deixando o usuário preso no modo Show.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.action == KeyEvent.ACTION_UP) finish()
+            if (event.action == KeyEvent.ACTION_UP) navigateBack()
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /** Voltar: de um cartão/resposta para a home do modo Show; da home, sai do modo Show. */
+    private fun navigateBack() {
+        val show = graph.show
+        if (show.isAwayFromHome) show.dismiss() else finish()
     }
 
     override fun onStart() {

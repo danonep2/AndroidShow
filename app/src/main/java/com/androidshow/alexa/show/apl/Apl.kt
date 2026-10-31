@@ -111,9 +111,11 @@ fun AplDocument(
     data: (String) -> String?,
     modifier: Modifier = Modifier,
     onSendEvent: (Array<Any?>) -> Unit = {},
+    /** Recria a view (e o documento) quando muda, mesmo com o mesmo documento. */
+    renderKey: Any = Unit,
 ) {
     // Um controlador por documento: key() recria a view (e o render) só quando o documento muda.
-    key(document) {
+    key(document, renderKey) {
         val holder = remember { arrayOfNulls<IAPLController>(1) }
         AndroidView(
             // Sem tamanho explícito o AndroidView mede o conteúdo e o APLLayout fica 0×0 (tela preta).

@@ -32,6 +32,8 @@ sealed interface ShowScreen {
         /** Documento APL da home (SPA) e o parâmetro "payload" montado com os dados, para o renderizador. */
         val document: String? = null,
         val payload: String? = null,
+        /** Muda a cada "ir para a home" estando já nela: recria o documento na primeira página. */
+        val generation: Int = 0,
     ) : ShowScreen
 
     /** Cartão TemplateRuntime.RenderTemplate (BodyTemplate1/2, ListTemplate1, WeatherTemplate...). */
@@ -128,7 +130,7 @@ class ShowModeController(private val scope: CoroutineScope) {
                 id?.let { homeItems[it]?.obj("data") } ?: ref
             }))
         }.toString().replace(WAKE_WORD_PLACEHOLDER, "Alexa") else null
-        return ShowScreen.Home(sorted, doc?.obj("document")?.toString(), payload)
+        return ShowScreen.Home(sorted, doc?.obj("document")?.toString(), payload, homeGeneration)
     }
 
     /**
@@ -222,6 +224,17 @@ class ShowModeController(private val scope: CoroutineScope) {
     }
 
     /** Toque do usuário fecha o conteúdo atual e volta à home. */
+    private var homeGeneration = 0
+
+    /** Botão Home: sai do cartão/resposta atual ou, já na home, volta à primeira página dela. */
+    fun goHome() {
+        if (_screen.value is ShowScreen.Home) homeGeneration++
+        dismiss()
+    }
+
+    /** true se a tela atual não é a home (o "voltar" deve primeiro voltar para ela). */
+    val isAwayFromHome: Boolean get() = _screen.value !is ShowScreen.Home
+
     fun dismiss() {
         timeout?.cancel()
         _screen.value = homeScreen()
