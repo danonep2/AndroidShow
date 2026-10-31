@@ -45,8 +45,10 @@ object DiagLog {
     }
 
     private val SECRET_JSON = Regex(
-        "\"(access_token|refresh_token|device_private_key|adp_token|authorization_code|code_verifier|source_token|Value|token)\"\\s*:\\s*\"[^\"]*\""
+        // O valor pode conter aspas escapadas (cookies x-acbbr/at-acbbr): consome \" até a aspa final.
+        "\"(access_token|refresh_token|device_private_key|adp_token|authorization_code|code_verifier|source_token|Value|token)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\""
     )
+    private val TOKEN_LITERAL = Regex("(Atz[a-z]\\||Atnr\\|)[^\\s\"&,\\\\]+")
     private val SECRET_PARAM = Regex(
         "((?:openid\\.oa2\\.authorization_code|source_token|code_verifier|access_token|refresh_token)=)[^&\\s\"]+"
     )
@@ -56,4 +58,5 @@ object DiagLog {
         .replace(SECRET_JSON) { "\"${it.groupValues[1]}\":\"***\"" }
         .replace(SECRET_PARAM) { "${it.groupValues[1]}***" }
         .replace(BEARER) { "${it.groupValues[1]}***" }
+        .replace(TOKEN_LITERAL) { "${it.groupValues[1]}***" }
 }

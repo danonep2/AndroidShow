@@ -20,4 +20,11 @@ class DiagLogTest {
         assertEquals("source_token=***&app_name=x", DiagLog.redact("source_token=Atnr|q&app_name=x"))
         assertEquals("Authorization: Bearer ***", DiagLog.redact("Authorization: Bearer Atza|q"))
     }
+
+    @Test
+    fun masksCookieValuesWithEscapedQuotes() {
+        val cookie = """{"Value":"\"Atza|gQCe-x_9\"","Expires":"2046","Name":"at-acbbr"}"""
+        assertEquals("""{"Value":"***","Expires":"2046","Name":"at-acbbr"}""", DiagLog.redact(cookie))
+        assertEquals("cookie=Atza|*** fim", DiagLog.redact("cookie=Atza|abc-DEF_1 fim"))
+    }
 }

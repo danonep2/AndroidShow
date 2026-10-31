@@ -1,6 +1,8 @@
 package com.androidshow.alexa.avs
 
+import android.os.SystemClock
 import android.util.Log
+import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.auth.AuthRepository
 import com.androidshow.alexa.auth.AvsRegion
 import com.androidshow.alexa.net.Http
@@ -104,20 +106,23 @@ class AvsClient(
         }
         try {
             while (true) {
+                var openedAt = 0L
                 try {
                     _state.value = State.Connecting
                     openDownchannel {
+                        openedAt = SystemClock.elapsedRealtime()
                         _state.value = State.Connected
-                        backoff = MIN_BACKOFF_MS
-                        launch { runCatching { onConnected() }.onFailure { Log.w(TAG, "onConnected", it) } }
+                        launch { runCatching { onConnected() }.onFailure { DiagLog.w("avs", "onConnected", it) } }
                     }
-                    Log.i(TAG, "Downchannel encerrado pelo servidor")
+                    DiagLog.i("avs", "downchannel encerrado pelo servidor")
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "Downchannel caiu: ${e.message}")
+                    DiagLog.w("avs", "downchannel caiu: ${e.message}")
                 }
                 _state.value = State.Disconnected
+                // Só zera o backoff se a conexão durou: evita laço apertado quando o servidor fecha na hora.
+                if (openedAt > 0 && SystemClock.elapsedRealtime() - openedAt > STABLE_CONNECTION_MS) backoff = MIN_BACKOFF_MS
                 delay(backoff)
                 backoff = (backoff * 2).coerceAtMost(MAX_BACKOFF_MS)
             }
@@ -134,9 +139,10 @@ class AvsClient(
             .build()
         val call = http.newCall(request)
         call.await().use { response ->
+            logResponse("directives", response)
             checkAuthorized(response)
             onOpen()
-            readParts(call, response)
+            if (!readParts(call, response)) throw IOException("downchannel sem multipart")
         }
     }
 
@@ -162,10 +168,15 @@ class AvsClient(
             .build()
         val call = http.newCall(request)
         call.await().use { response ->
+            logResponse(event.toString().substringAfter("\"name\":\"").substringBefore('"'), response)
             checkAuthorized(response)
             if (response.code == 204) return
             readParts(call, response)
         }
+    }
+
+    private fun logResponse(label: String, r: Response) {
+        DiagLog.i("avs", "$label → ${r.code} ${r.protocol} ${r.header("Content-Type").orEmpty()} host=${r.request.url.host}")
     }
 
     suspend fun ping() {
@@ -181,13 +192,24 @@ class AvsClient(
             runCatching { auth.accessToken(force = true) }
             throw HttpException(response.code, "token recusado pelo AVS")
         }
-        if (!response.isSuccessful) throw HttpException(response.code, response.body?.string().orEmpty().take(300))
+        if (!response.isSuccessful) {
+            val body = response.body?.string().orEmpty().take(2000)
+            DiagLog.w("avs", "erro ${response.code}: $body")
+            throw HttpException(response.code, body.take(300))
+        }
     }
 
-    /** Lê as partes multipart à medida que chegam. Cancelar a coroutine cancela a chamada HTTP. */
-    private suspend fun readParts(call: Call, response: Response) = coroutineScope {
-        val body = response.body ?: return@coroutineScope
-        if (body.contentType()?.type != "multipart") return@coroutineScope
+    /**
+     * Lê as partes multipart à medida que chegam. Cancelar a coroutine cancela a chamada HTTP.
+     * Devolve false se a resposta não era multipart (o corpo vai para o diagnóstico).
+     */
+    private suspend fun readParts(call: Call, response: Response): Boolean = coroutineScope {
+        val body = response.body ?: return@coroutineScope false
+        if (body.contentType()?.type != "multipart") {
+            val text = withContext(Dispatchers.IO) { runCatching { body.string() }.getOrDefault("") }
+            DiagLog.w("avs", "resposta não multipart (${body.contentType()}): ${text.take(2000)}")
+            return@coroutineScope false
+        }
         val canceller = launch {
             try { awaitCancellation() } finally { call.cancel() }
         }
@@ -203,8 +225,12 @@ class AvsClient(
                             attachments.put(contentId, bytes)
                         } else {
                             val directive = Directive.parse(bytes.decodeToString())
-                            if (directive != null) _directives.emit(directive)
-                            else Log.d(TAG, "Parte ignorada: ${bytes.decodeToString().take(200)}")
+                            if (directive != null) {
+                                DiagLog.i("avs", "diretiva ${directive.key}")
+                                _directives.emit(directive)
+                            } else {
+                                DiagLog.w("avs", "parte ignorada ($type): ${bytes.decodeToString().take(500)}")
+                            }
                         }
                     }
                 }
@@ -212,6 +238,7 @@ class AvsClient(
         } finally {
             canceller.cancel()
         }
+        true
     }
 
     /** Envolve um corpo para envio duplex (HTTP/2): grava em segundo plano e devolve na hora. */
@@ -236,5 +263,6 @@ class AvsClient(
         const val PING_INTERVAL_MS = 5 * 60_000L
         const val MIN_BACKOFF_MS = 1_000L
         const val MAX_BACKOFF_MS = 60_000L
+        const val STABLE_CONNECTION_MS = 30_000L
     }
 }
