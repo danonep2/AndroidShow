@@ -69,6 +69,7 @@ class ShowModeActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 val screen by show.screen.collectAsStateWithLifecycle()
                 val dialog by alexa.dialog.collectAsStateWithLifecycle()
+                val utterance by alexa.utterance.collectAsStateWithLifecycle()
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -88,6 +89,7 @@ class ShowModeActivity : ComponentActivity() {
                         shape = CircleShape,
                         modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
                     ) { Text(if (dialog == AlexaService.Dialog.Listening) "■" else "🎤") }
+                    Caption(utterance.takeIf { dialog != AlexaService.Dialog.Idle }, Modifier.align(Alignment.BottomCenter))
                     DialogBar(dialog, Modifier.align(Alignment.BottomCenter))
                 }
             }
@@ -146,5 +148,20 @@ private fun DialogBar(dialog: AlexaService.Dialog, modifier: Modifier) {
     }
     AnimatedVisibility(colors != null, modifier, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxWidth().height(8.dp).background(Brush.horizontalGradient(colors ?: listOf(Color.Transparent, Color.Transparent))))
+    }
+}
+
+/** Legenda com a frase que a Alexa entendeu, como no Echo Show. */
+@Composable
+private fun Caption(text: String?, modifier: Modifier) {
+    AnimatedVisibility(text != null, modifier.padding(bottom = 32.dp), enter = fadeIn(), exit = fadeOut()) {
+        Text(
+            "“${text.orEmpty()}”",
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color(0xFFE6EDF5),
+            modifier = Modifier
+                .background(Color(0xCC000000), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+        )
     }
 }

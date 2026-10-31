@@ -16,6 +16,7 @@ import com.androidshow.alexa.net.obj
 import com.androidshow.alexa.net.str
 import com.androidshow.alexa.voice.AudioCapture
 import com.androidshow.alexa.voice.Microphone
+import com.androidshow.alexa.voice.MusicPlayer
 import com.androidshow.alexa.voice.wake.WakeWordConfig
 import com.androidshow.alexa.voice.SpeechPlayer
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +57,14 @@ class AlexaService(
     private val audio = context.getSystemService(AudioManager::class.java)
     private val debugAudio = if (BuildConfig.DEBUG) java.io.File(context.cacheDir, "last_capture.pcm") else null
     private val player = SpeechPlayer()
+    private val music = MusicPlayer(context, attachments, scope) { avs.sendEvent(it) }
+
+    /** Estado da música (AudioPlayer), para a UI. */
+    val musicState get() = music.state
+
+    private val _utterance = MutableStateFlow<String?>(null)
+    /** Frase reconhecida pela nuvem (vem no RequestProcessingStarted deste tipo de dispositivo). */
+    val utterance: StateFlow<String?> = _utterance.asStateFlow()
 
     private val _dialog = MutableStateFlow(Dialog.Idle)
     val dialog: StateFlow<Dialog> = _dialog.asStateFlow()
@@ -85,6 +94,8 @@ class AlexaService(
         scope.launch {
             auth.session.collect { s -> if (s != null) avs.start(s.marketplace.region) else avs.stop() }
         }
+        // Música abaixa enquanto a Alexa ouve ou fala.
+        scope.launch { dialog.collect { music.duck(it != Dialog.Idle) } }
         // StopCapture precisa agir na hora, mesmo com outra diretiva em andamento.
         scope.launch {
             avs.directives.collect { d -> if (d.key == "SpeechRecognizer.StopCapture") stopListening() }
@@ -160,6 +171,7 @@ class AlexaService(
         if (capture != null) return null
         val mic = AudioCapture(microphone, preroll, localEndpointing = localEndpointing, debugCopy = debugAudio)
         capture = mic
+        _utterance.value = null
         _dialog.value = Dialog.Listening
         val payload = buildJsonObject {
             put("profile", "NEAR_FIELD")
@@ -196,10 +208,16 @@ class AlexaService(
             "Speaker.AdjustVolume" -> setVolume(currentVolume() + (d.payload.long("volume")?.toInt() ?: 0))
             "Speaker.SetMute" -> setMute(d.payload["mute"]?.toString() == "true")
             "System.SetEndpoint" -> d.payload.str("endpoint")?.let(avs::setEndpoint)
-            "System.ResetUserInactivity", "Alexa.EventProcessed" -> Unit
+            "System.ResetUserInactivity", "Alexa.EventProcessed",
+            "SpeechRecognizer.SetEndOfSpeechOffset", "SpeechRecognizer.RequestProcessingCompleted" -> Unit
+            "SpeechRecognizer.RequestProcessingStarted" -> d.payload.str("utterance")?.let {
+                _utterance.value = it
+                append("Você: $it")
+                DiagLog.i("avs", "entendido: \"$it\" (${d.payload.str("intentName")})")
+            }
             // A nuvem pede o estado atual; o contexto vai junto em todo evento.
             "System.ReportState" -> avs.sendEvent(avsEvent("System", "StateReport"))
-            else -> if (displayHandler?.invoke(d) != true) DiagLog.i("avs", "sem handler: ${d.key} ${d.payload.toString().take(300)}")
+            else -> if (!music.handle(d) && displayHandler?.invoke(d) != true) DiagLog.i("avs", "sem handler: ${d.key} ${d.payload.toString().take(300)}")
         }
     }
 
@@ -256,11 +274,7 @@ class AlexaService(
                 put("playerActivity", speechActivity)
             }),
             avsState("Speaker", "VolumeState", volumeState()),
-            avsState("AudioPlayer", "PlaybackState", buildJsonObject {
-                put("token", "")
-                put("offsetInMilliseconds", 0)
-                put("playerActivity", "IDLE")
-            }),
+            music.contextItem(),
             avsState("Alerts", "AlertsState", buildJsonObject {
                 put("allAlerts", JsonArray(emptyList()))
                 put("activeAlerts", JsonArray(emptyList()))

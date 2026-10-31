@@ -1,6 +1,7 @@
 package com.androidshow.alexa.show
 
 import android.util.Log
+import com.androidshow.alexa.avs.Capabilities
 import com.androidshow.alexa.avs.Directive
 import com.androidshow.alexa.avs.avsState
 import com.androidshow.alexa.net.str
@@ -109,11 +110,11 @@ class ShowModeController(private val scope: CoroutineScope) {
                 putJsonArray("instances") {
                     addJsonObject {
                         put("id", WINDOW_ID)
-                        put("templateId", WINDOW_TEMPLATE)
+                        put("templateId", Capabilities.WINDOW_TEMPLATE)
                         put("token", aplToken)
                         putJsonObject("configuration") {
-                            put("interactionMode", "mobile_mode")
-                            put("sizeConfigurationId", "fullscreen")
+                            put("interactionMode", Capabilities.INTERACTION_MODE)
+                            put("sizeConfigurationId", Capabilities.WINDOW_SIZE)
                         }
                     }
                 }
@@ -144,7 +145,6 @@ class ShowModeController(private val scope: CoroutineScope) {
         const val TAG = "ShowMode"
         val VISUAL_NAMESPACES = setOf("TemplateRuntime", "Alexa.Presentation.APL", "Alexa.Presentation.Home", "Alexa.Display.Window", "Alexa.Display")
         const val WINDOW_ID = "app_window"
-        const val WINDOW_TEMPLATE = "fullscreen_mobile"
         const val CARD_TIMEOUT_MS = 20_000L
     }
 }

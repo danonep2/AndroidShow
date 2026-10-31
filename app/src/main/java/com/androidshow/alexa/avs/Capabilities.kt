@@ -26,9 +26,10 @@ import java.util.UUID
  * a fala (204 sem diretivas) [Observado no Redmi].
  */
 object Capabilities {
-    const val WINDOW_TEMPLATE = "fullscreen_mobile"
+    const val WINDOW_TEMPLATE = "fullscreen_hub"
     const val WINDOW_SIZE = "fullscreen"
-    const val INTERACTION_MODE = "mobile_mode"
+    // HUB: o Echo Show se anuncia assim; MOBILE fazia a nuvem responder só em voz como no app Alexa [Observado].
+    const val INTERACTION_MODE = "hub_mode"
 
     fun list(widthPx: Int, heightPx: Int): JsonArray = buildJsonArray {
         iface("SpeechRecognizer", "2.3") {
@@ -78,10 +79,10 @@ object Capabilities {
                 putJsonArray("interactionModes") {
                     addJsonObject {
                         put("id", INTERACTION_MODE)
-                        put("uiMode", "MOBILE")
+                        put("uiMode", "HUB")
                         putJsonObject("interactionDistance") {
                             put("unit", "INCHES")
-                            put("value", 18)
+                            put("value", 36)
                         }
                         put("touch", "SUPPORTED")
                         put("keyboard", "UNSUPPORTED")
