@@ -37,8 +37,9 @@ O repositório público (tag e `main`) não compila sem ajustes:
 
 - **buildSrc ausente**: `APLPlugin` e `EnumGenerator` são internos da Amazon. O patch recria
   versões mínimas (os enums gerados já estão versionados).
-- **Fontes Amazon Ember removidas** (`R.font.*`): `EmbeddedFontResolver` usa a sans-serif do
-  sistema no peso pedido.
+- **Fontes Amazon Ember removidas** (`R.font.*`): `EmbeddedFontResolver` usa as famílias nomeadas do
+  sistema (`sans-serif-light`, `sans-serif`, `sans-serif-medium`, negrito) e passa a ser o resolvedor
+  principal: o de runtime lê o `fonts.xml` e no HyperOS devolvia faces inclinadas. Itálico ignorado.
 - **Métodos ausentes**: `Text.getLineBounds`, `Video.setFromEvent` e
   `VideoViewAdapter.inflateViewWithNonZeroDimensions` (caso legado de vídeo, vira no-op).
 - **Eventos sem tratamento**: `buildEvent` não ligava PlayMedia, ControlMedia, RequestLineBounds,
@@ -58,4 +59,8 @@ app Alexa oficial e impediam a instalação quando ele está no aparelho.
   como o `AssembleSPADocumentAndData` do app Windows.
 - Skills: cada parâmetro do `mainTemplate` recebe o datasource de mesmo nome (ou todos, para
   `payload`); `SendEvent` vira `Alexa.Presentation.APL.UserEvent`.
-- Viewport `hub`, tema escuro (`res/layout/apl_layout.xml`).
+- Viewport `hub`, tema escuro (`res/layout/apl_layout.xml`). O celular deitado tem ~853×384 dp,
+  menor que qualquer Echo Show; o scaling do APL monta o documento no perfil `hubLandscapeLarge`
+  (Echo Show 8, 1280–1919×800 dp) e reduz para caber (~0,48×). Com o perfil do Echo Show 5
+  (480 dp de altura) os layouts ficavam grandes e cortados.
+- `{WakeWord}` nas dicas da home é trocado por "Alexa" antes de desenhar, como no app Windows.

@@ -127,7 +127,7 @@ class ShowModeController(private val scope: CoroutineScope) {
                 val id = (ref as? JsonObject)?.str("dataId")
                 id?.let { homeItems[it]?.obj("data") } ?: ref
             }))
-        }.toString() else null
+        }.toString().replace(WAKE_WORD_PLACEHOLDER, "Alexa") else null
         return ShowScreen.Home(sorted, doc?.obj("document")?.toString(), payload)
     }
 
@@ -275,6 +275,8 @@ class ShowModeController(private val scope: CoroutineScope) {
         val HOME_NAMESPACES = listOf("DEV.Alexa.Presentation.Home", "Alexa.Presentation.Home")
         val VISUAL_NAMESPACES = setOf("TemplateRuntime", "Alexa.Presentation.APL", "Alexa.Display.Window", "Alexa.Display") + HOME_NAMESPACES
         const val HOME_DOCUMENT_WINDOW_MS = 8_000L
+        /** As dicas da home vêm com "{WakeWord}"; o app Windows troca pela palavra antes de desenhar. */
+        const val WAKE_WORD_PLACEHOLDER = "{WakeWord}"
         const val WINDOW_ID = "app_window"
         const val CARD_TIMEOUT_MS = 20_000L
     }

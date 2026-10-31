@@ -5157,10 +5157,10 @@ index 0000000..dd40a47
 +    }
 +}
 diff --git a/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java b/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
-index 1014a50..4f082bc 100644
+index 1014a50..0a34102 100644
 --- a/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
 +++ b/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
-@@ -10,109 +10,35 @@ import android.content.res.Resources;
+@@ -10,109 +10,46 @@ import android.content.res.Resources;
  import android.graphics.Typeface;
  import android.util.Log;
  
@@ -5226,17 +5226,28 @@ index 1014a50..4f082bc 100644
 -            result = findAPLFont(key);
 -        } catch (final Resources.NotFoundException ex) {
 -            Log.e(TAG, "Exception finding embedded app font", ex);
-+        final Typeface base = Typeface.create("sans-serif", Typeface.NORMAL);
-+        if (android.os.Build.VERSION.SDK_INT >= 28) {
-+            return Typeface.create(base, key.getWeight(), key.isItalic());
++        // Famílias nomeadas em vez de Typeface.create(base, peso, itálico): no HyperOS esta última
++        // devolve uma face inclinada para pesos leves [Observado no Redmi].
++        final int weight = key.getWeight();
++        final String family;
++        int style = Typeface.NORMAL;
++        if (weight <= 350) {
++            family = "sans-serif-light";
++        } else if (weight < 500) {
++            family = "sans-serif";
++        } else if (weight < 700) {
++            family = "sans-serif-medium";
++        } else {
++            family = "sans-serif";
++            style = Typeface.BOLD;
          }
 -        if (result == null) {
 -            Log.w(TAG, "Did not find font with key: " + key);
 -        }
 -        return result;
-+        final int style = (key.getWeight() >= 600 ? Typeface.BOLD : Typeface.NORMAL)
-+                | (key.isItalic() ? Typeface.ITALIC : 0);
-+        return Typeface.create(base, style);
++        // Itálico ignorado: no Redmi todo texto da home saía inclinado (o caminho de fontes do
++        // viewhost público marca itálico indevidamente); os layouts da home não dependem dele.
++        return Typeface.create(family, style);
      }
  
      @Override
@@ -5280,6 +5291,528 @@ index 1014a50..4f082bc 100644
 -
 -
 -
+diff --git a/apl/src/main/java/com/amazon/apl/android/font/TypefaceResolver.java b/apl/src/main/java/com/amazon/apl/android/font/TypefaceResolver.java
+index 5bf3f9b..4bbe20d 100644
+--- a/apl/src/main/java/com/amazon/apl/android/font/TypefaceResolver.java
++++ b/apl/src/main/java/com/amazon/apl/android/font/TypefaceResolver.java
+@@ -1,259 +1,258 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- * SPDX-License-Identifier: Apache-2.0
+- */
+-
+-package com.amazon.apl.android.font;
+-
+-import android.content.Context;
+-import android.graphics.Typeface;
+-import android.util.Log;
+-
+-import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+-import androidx.annotation.VisibleForTesting;
+-import androidx.collection.LruCache;
+-
+-import com.amazon.apl.android.utils.ConcurrencyUtils;
+-import com.amazon.apl.android.BuildConfig;
+-import com.amazon.apl.android.RuntimeConfig;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-import java.util.concurrent.Callable;
+-import java.util.concurrent.ExecutionException;
+-import java.util.concurrent.Future;
+-import java.util.concurrent.TimeUnit;
+-import java.util.concurrent.TimeoutException;
+-
+-/**
+- * The ViewHost internal typeface resolver API.
+- * Responsible for obtaining font {@link Typeface} information.
+- */
+-public class TypefaceResolver {
+-    Context mContext;
+-    private IFontResolver mRuntimeFontResolver;
+-    private IFontResolver mEmbeddedFontResolver;
+-    private boolean mEnableEmbeddedFontResolver;
+-    private static final TypefaceResolver sInstance = new TypefaceResolver();
+-    private static final String TAG = "TypefaceResolver";
+-    private static final Typeface DEFAULT_TYPEFACE = Typeface.SANS_SERIF;
+-    private Future<Boolean> mInitializeResolvers;
+-    static final LruCache<FontKey, Typeface> FONT_CACHE = new LruCache<>(150);
+-
+-    private enum  InitializationState {
+-        UNINITIALIZED,
+-        INITIALIZING,
+-        INITIALIZED
+-    }
+-
+-    private InitializationState mInitializationState = InitializationState.UNINITIALIZED;
+-
+-    /**
+-     * Private Constructor for singleton */
+-    private TypefaceResolver() {
+-    }
+-
+-    /**
+-     * @return Single instance of the TypefaceResolver
+-     */
+-    public static TypefaceResolver getInstance() {
+-        return TypefaceResolver.sInstance;
+-    }
+-
+-    /**
+-     * @param context The Android context.
+-     * @param runtimeConfig allows the runtime to configure the typeface resolver
+-     */
+-    public synchronized void initialize(Context context, RuntimeConfig runtimeConfig) {
+-        if (BuildConfig.DEBUG) {
+-            Log.i(TAG, "Initializing Amazon Fonts");
+-        }
+-        if (runtimeConfig.getFontResolver() == null) {
+-            return;
+-        }
+-        if (mInitializationState == InitializationState.UNINITIALIZED) {
+-            // set state to initializing
+-            mInitializationState = InitializationState.INITIALIZING;
+-            mRuntimeFontResolver = runtimeConfig.getFontResolver();
+-            mContext = context;
+-            mEnableEmbeddedFontResolver = runtimeConfig.isEmbeddedFontResolverEnabled();
+-            mInitializeResolvers = FontUtil.SEQUENTIAL_EXECUTOR.submit(new InitializeResolvers(runtimeConfig.isPreloadingFontsEnabled()));
+-        }
+-    }
+-
+-    @VisibleForTesting
+-    public void reset() {
+-        mInitializationState = InitializationState.UNINITIALIZED;
+-        FONT_CACHE.evictAll();
+-        FontUtil.SEQUENTIAL_EXECUTOR.clearTaskQueue();
+-    }
+-
+-    private boolean waitUntilFontsAvailable() {
+-        try {
+-            return mInitializeResolvers.get(ConcurrencyUtils.SMALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+-        } catch (final TimeoutException ex) {
+-            Log.wtf(TAG, String.format("System fonts failed to load with a %d timeout", ConcurrencyUtils.SMALL_TIMEOUT_SECONDS), ex);
+-        } catch (final ExecutionException ex) {
+-            Log.e(TAG, "System fonts failed to load", ex);
+-        } catch (InterruptedException ex) {
+-            Log.e(TAG, "System fonts loading interrupted", ex);
+-            Thread.currentThread().interrupt();
+-        }
+-        return false;
+-    }
+-
+-    private class InitializeResolvers implements Callable<Boolean> {
+-        private final boolean mShouldPreloadFonts;
+-
+-        private InitializeResolvers(final boolean shouldPreloadFonts) {
+-            mShouldPreloadFonts = shouldPreloadFonts;
+-        }
+-
+-        @Override
+-        public Boolean call() {
+-            // call resolver heavy initializers
+-            mRuntimeFontResolver.initialize();
+-
+-            // cache commonly used Amazon system fonts
+-            if (mShouldPreloadFonts) {
+-                preloadFonts();
+-            }
+-
+-            mInitializationState = InitializationState.INITIALIZED;
+-            return true;
+-        }
+-    }
+-
+-    /* Gets a IFontResolver instance.
+-     * @return Returns a stored instance of the Runtime resolver
+-     */
+-    private IFontResolver getRuntimeResolver() {
+-        return mRuntimeFontResolver;
+-    }
+-
+-    /* Gets a IFontResolver instance.
+-     * @return Returns a stored instance of the embedded font resolver
+-     */
+-    private IFontResolver getEmbeddedResolver() {
+-        if (mEmbeddedFontResolver == null) {
+-            mEmbeddedFontResolver = new EmbeddedFontResolver(mContext);
+-        }
+-        return mEmbeddedFontResolver;
+-    }
+-
+-    /**
+-     * Gets a FileFontKey based on font-family, fontWeight, italic.
+-     *
+-     * @param fontFamily    The name of the font family, sans-serif used if blank or empty string.
+-     * @param fontWeight    The weight of the font.
+-     * @param italic        The italic styling of the font.
+-     * @param isAPLOneZero  Is the requesting document in APL 1.0.
+-     * @return A font matching the specification, or the system's best guess.
+-     */
+-    @NonNull
+-    public Typeface getTypeface(
+-            final String fontFamily,
+-            final int fontWeight,
+-            final boolean italic,
+-            final String language,
+-            final boolean isAPLOneZero) {
+-
+-        if (waitUntilFontsAvailable()) {
+-            try {
+-                FontKey fontKey = FontKey.build(fontFamily, fontWeight).italic(italic).language(language).build();
+-                final Typeface cachedFont = TypefaceResolver.FONT_CACHE.get(fontKey);
+-
+-                if (cachedFont != null) {
+-                    return cachedFont;
+-                }
+-
+-                Typeface typeface;
+-
+-                if (FontUtil.isArabicFontKey(fontKey) && mEnableEmbeddedFontResolver) {
+-                    typeface = getTypefaceFromFontFamily(fontKey, getEmbeddedResolver());
+-                } else {
+-                    typeface = getTypefaceFromFontFamily(fontKey, getRuntimeResolver());
+-                    if (typeface == null && mEnableEmbeddedFontResolver) {
+-                        typeface = getTypefaceFromFontFamily(fontKey, getEmbeddedResolver());
+-                    }
+-                }
+-
+-                if (typeface == null) {
+-                    typeface = Typeface.create(
+-                            isAPLOneZero ? null : DEFAULT_TYPEFACE,
+-                            italic ? Typeface.ITALIC : Typeface.NORMAL);
+-                }
+-
+-                if (typeface != null) {
+-                    TypefaceResolver.FONT_CACHE.put(fontKey, typeface);
+-                    return typeface;
+-                }
+-            } catch (final RuntimeException e) {
+-                Log.e(TAG, "FileFontKey file " + fontFamily + " not found on the device", e);
+-            }
+-        }
+-
+-        return null;
+-    }
+-
+-    @Nullable
+-    private Typeface getTypefaceFromFontFamily(FontKey key, IFontResolver fontResolver) {
+-        Typeface result = null;
+-        String fontFamily = key.getFamily();
+-        if (fontFamily.contains(",")) {
+-            for (String font : fontFamily.split(",")) {
+-                if (!font.isEmpty()) {
+-                    FontKey fontKey = FontKey.build(font.trim(), key.getWeight()).italic(key.isItalic()).language(key.getLanguage()).build();
+-                    final Typeface cachedFont = TypefaceResolver.FONT_CACHE.get(fontKey);
+-
+-                    if (cachedFont != null) {
+-                        return cachedFont;
+-                    }
+-
+-                    result = fontResolver.findFont(fontKey);
+-                    if (result != null) {
+-                        return result;
+-                    }
+-                }
+-            }
+-            return null;
+-        }
+-        return fontResolver.findFont(key);
+-    }
+-
+-    /**
+-     * Preload commonly used fonts
+-     */
+-    private synchronized void preloadFonts() {
+-        List<FontKey> commonFontKeys = getCommonlyUsedFontKeys();
+-        for(FontKey fontKey: commonFontKeys) {
+-            FontUtil.SEQUENTIAL_EXECUTOR.execute(() -> getTypeface(fontKey.getFamily(), fontKey.getWeight(), fontKey.isItalic(), fontKey.getLanguage(), false));
+-        }
+-    }
+-
+-    /**
+-     * Explicitly add a font to the cache for the defined key. Use this if your resolver knows that
+-     * multiple FontKeys will map to the same Typeface object.
+-     * @param fontKey   the fontkey
+-     * @param typeface  the typeface
+-     */
+-    public static void putTypeface(FontKey fontKey, Typeface typeface) {
+-        FONT_CACHE.put(fontKey, typeface);
+-    }
+-
+-    /**
+-     * Gets a list of commonly used font to warm up the fonts Cache.
+-    */
+-    private ArrayList<FontKey> getCommonlyUsedFontKeys() {
+-        ArrayList<FontKey> commonFontKeys = new ArrayList<>();
+-        String[] fontFamilies = {"amazon-ember-display", "bookerly"};
+-        for(String family : fontFamilies) {
+-            for (int i = 100; i <= 900; i+=100) {
+-                commonFontKeys.add(FontKey.build(family, i).build());
+-                commonFontKeys.add(FontKey.build(family, i).italic(true).build());
+-            }
+-        }
+-        return commonFontKeys;
+-    }
+-}
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.amazon.apl.android.font;
++
++import android.content.Context;
++import android.graphics.Typeface;
++import android.util.Log;
++
++import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
++import androidx.annotation.VisibleForTesting;
++import androidx.collection.LruCache;
++
++import com.amazon.apl.android.utils.ConcurrencyUtils;
++import com.amazon.apl.android.BuildConfig;
++import com.amazon.apl.android.RuntimeConfig;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.concurrent.Callable;
++import java.util.concurrent.ExecutionException;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
++
++/**
++ * The ViewHost internal typeface resolver API.
++ * Responsible for obtaining font {@link Typeface} information.
++ */
++public class TypefaceResolver {
++    Context mContext;
++    private IFontResolver mRuntimeFontResolver;
++    private IFontResolver mEmbeddedFontResolver;
++    private boolean mEnableEmbeddedFontResolver;
++    private static final TypefaceResolver sInstance = new TypefaceResolver();
++    private static final String TAG = "TypefaceResolver";
++    private static final Typeface DEFAULT_TYPEFACE = Typeface.SANS_SERIF;
++    private Future<Boolean> mInitializeResolvers;
++    static final LruCache<FontKey, Typeface> FONT_CACHE = new LruCache<>(150);
++
++    private enum  InitializationState {
++        UNINITIALIZED,
++        INITIALIZING,
++        INITIALIZED
++    }
++
++    private InitializationState mInitializationState = InitializationState.UNINITIALIZED;
++
++    /**
++     * Private Constructor for singleton */
++    private TypefaceResolver() {
++    }
++
++    /**
++     * @return Single instance of the TypefaceResolver
++     */
++    public static TypefaceResolver getInstance() {
++        return TypefaceResolver.sInstance;
++    }
++
++    /**
++     * @param context The Android context.
++     * @param runtimeConfig allows the runtime to configure the typeface resolver
++     */
++    public synchronized void initialize(Context context, RuntimeConfig runtimeConfig) {
++        if (BuildConfig.DEBUG) {
++            Log.i(TAG, "Initializing Amazon Fonts");
++        }
++        if (runtimeConfig.getFontResolver() == null) {
++            return;
++        }
++        if (mInitializationState == InitializationState.UNINITIALIZED) {
++            // set state to initializing
++            mInitializationState = InitializationState.INITIALIZING;
++            mRuntimeFontResolver = runtimeConfig.getFontResolver();
++            mContext = context;
++            mEnableEmbeddedFontResolver = runtimeConfig.isEmbeddedFontResolverEnabled();
++            mInitializeResolvers = FontUtil.SEQUENTIAL_EXECUTOR.submit(new InitializeResolvers(runtimeConfig.isPreloadingFontsEnabled()));
++        }
++    }
++
++    @VisibleForTesting
++    public void reset() {
++        mInitializationState = InitializationState.UNINITIALIZED;
++        FONT_CACHE.evictAll();
++        FontUtil.SEQUENTIAL_EXECUTOR.clearTaskQueue();
++    }
++
++    private boolean waitUntilFontsAvailable() {
++        try {
++            return mInitializeResolvers.get(ConcurrencyUtils.SMALL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
++        } catch (final TimeoutException ex) {
++            Log.wtf(TAG, String.format("System fonts failed to load with a %d timeout", ConcurrencyUtils.SMALL_TIMEOUT_SECONDS), ex);
++        } catch (final ExecutionException ex) {
++            Log.e(TAG, "System fonts failed to load", ex);
++        } catch (InterruptedException ex) {
++            Log.e(TAG, "System fonts loading interrupted", ex);
++            Thread.currentThread().interrupt();
++        }
++        return false;
++    }
++
++    private class InitializeResolvers implements Callable<Boolean> {
++        private final boolean mShouldPreloadFonts;
++
++        private InitializeResolvers(final boolean shouldPreloadFonts) {
++            mShouldPreloadFonts = shouldPreloadFonts;
++        }
++
++        @Override
++        public Boolean call() {
++            // call resolver heavy initializers
++            mRuntimeFontResolver.initialize();
++
++            // cache commonly used Amazon system fonts
++            if (mShouldPreloadFonts) {
++                preloadFonts();
++            }
++
++            mInitializationState = InitializationState.INITIALIZED;
++            return true;
++        }
++    }
++
++    /* Gets a IFontResolver instance.
++     * @return Returns a stored instance of the Runtime resolver
++     */
++    private IFontResolver getRuntimeResolver() {
++        return mRuntimeFontResolver;
++    }
++
++    /* Gets a IFontResolver instance.
++     * @return Returns a stored instance of the embedded font resolver
++     */
++    private IFontResolver getEmbeddedResolver() {
++        if (mEmbeddedFontResolver == null) {
++            mEmbeddedFontResolver = new EmbeddedFontResolver(mContext);
++        }
++        return mEmbeddedFontResolver;
++    }
++
++    /**
++     * Gets a FileFontKey based on font-family, fontWeight, italic.
++     *
++     * @param fontFamily    The name of the font family, sans-serif used if blank or empty string.
++     * @param fontWeight    The weight of the font.
++     * @param italic        The italic styling of the font.
++     * @param isAPLOneZero  Is the requesting document in APL 1.0.
++     * @return A font matching the specification, or the system's best guess.
++     */
++    @NonNull
++    public Typeface getTypeface(
++            final String fontFamily,
++            final int fontWeight,
++            final boolean italic,
++            final String language,
++            final boolean isAPLOneZero) {
++
++        if (waitUntilFontsAvailable()) {
++            try {
++                FontKey fontKey = FontKey.build(fontFamily, fontWeight).italic(italic).language(language).build();
++                final Typeface cachedFont = TypefaceResolver.FONT_CACHE.get(fontKey);
++
++                if (cachedFont != null) {
++                    return cachedFont;
++                }
++
++                Typeface typeface;
++
++                if (FontUtil.isArabicFontKey(fontKey) && mEnableEmbeddedFontResolver) {
++                    typeface = getTypefaceFromFontFamily(fontKey, getEmbeddedResolver());
++                } else {
++                    // AndroidShow: o resolvedor de runtime lê o fonts.xml do sistema e no HyperOS escolhe
++                    // arquivos itálicos; a sans-serif via Typeface (EmbeddedFontResolver) é estável.
++                    typeface = getTypefaceFromFontFamily(fontKey, getEmbeddedResolver());
++                }
++
++                if (typeface == null) {
++                    typeface = Typeface.create(
++                            isAPLOneZero ? null : DEFAULT_TYPEFACE,
++                            italic ? Typeface.ITALIC : Typeface.NORMAL);
++                }
++
++                if (typeface != null) {
++                    TypefaceResolver.FONT_CACHE.put(fontKey, typeface);
++                    return typeface;
++                }
++            } catch (final RuntimeException e) {
++                Log.e(TAG, "FileFontKey file " + fontFamily + " not found on the device", e);
++            }
++        }
++
++        return null;
++    }
++
++    @Nullable
++    private Typeface getTypefaceFromFontFamily(FontKey key, IFontResolver fontResolver) {
++        Typeface result = null;
++        String fontFamily = key.getFamily();
++        if (fontFamily.contains(",")) {
++            for (String font : fontFamily.split(",")) {
++                if (!font.isEmpty()) {
++                    FontKey fontKey = FontKey.build(font.trim(), key.getWeight()).italic(key.isItalic()).language(key.getLanguage()).build();
++                    final Typeface cachedFont = TypefaceResolver.FONT_CACHE.get(fontKey);
++
++                    if (cachedFont != null) {
++                        return cachedFont;
++                    }
++
++                    result = fontResolver.findFont(fontKey);
++                    if (result != null) {
++                        return result;
++                    }
++                }
++            }
++            return null;
++        }
++        return fontResolver.findFont(key);
++    }
++
++    /**
++     * Preload commonly used fonts
++     */
++    private synchronized void preloadFonts() {
++        List<FontKey> commonFontKeys = getCommonlyUsedFontKeys();
++        for(FontKey fontKey: commonFontKeys) {
++            FontUtil.SEQUENTIAL_EXECUTOR.execute(() -> getTypeface(fontKey.getFamily(), fontKey.getWeight(), fontKey.isItalic(), fontKey.getLanguage(), false));
++        }
++    }
++
++    /**
++     * Explicitly add a font to the cache for the defined key. Use this if your resolver knows that
++     * multiple FontKeys will map to the same Typeface object.
++     * @param fontKey   the fontkey
++     * @param typeface  the typeface
++     */
++    public static void putTypeface(FontKey fontKey, Typeface typeface) {
++        FONT_CACHE.put(fontKey, typeface);
++    }
++
++    /**
++     * Gets a list of commonly used font to warm up the fonts Cache.
++    */
++    private ArrayList<FontKey> getCommonlyUsedFontKeys() {
++        ArrayList<FontKey> commonFontKeys = new ArrayList<>();
++        String[] fontFamilies = {"amazon-ember-display", "bookerly"};
++        for(String family : fontFamilies) {
++            for (int i = 100; i <= 900; i+=100) {
++                commonFontKeys.add(FontKey.build(family, i).build());
++                commonFontKeys.add(FontKey.build(family, i).italic(true).build());
++            }
++        }
++        return commonFontKeys;
++    }
++}
 diff --git a/apl/src/main/java/com/amazon/apl/devtools/controllers/DTConnection.java b/apl/src/main/java/com/amazon/apl/devtools/controllers/DTConnection.java
 deleted file mode 100644
 index e1a116b..0000000

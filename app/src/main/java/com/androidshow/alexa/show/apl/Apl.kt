@@ -18,6 +18,8 @@ import com.amazon.apl.android.Content
 import com.amazon.apl.android.IAPLController
 import com.amazon.apl.android.RootConfig
 import com.amazon.apl.android.dependencies.IPackageLoader
+import com.amazon.apl.android.scaling.Scaling
+import com.amazon.apl.enums.ViewportMode
 import com.androidshow.alexa.R
 import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.net.await
@@ -40,6 +42,24 @@ object Apl {
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var http: OkHttpClient
     private val packages = ConcurrentHashMap<String, String>()
+
+    /**
+     * Viewports de Echo Show em paisagem (dp). O celular em paisagem tem ~853×384 dp, abaixo do
+     * menor hub (960×480): o motor escolhe o viewport de hub mais próximo da proporção da tela,
+     * monta o documento nele e reduz a escala para caber, como num aparelho oficial.
+     */
+    val hubScaling by lazy {
+        fun spec(minW: Int, maxW: Int, minH: Int, maxH: Int) = Scaling.ViewportSpecification.builder()
+            .minWidth(minW).maxWidth(maxW).minHeight(minH).maxHeight(maxH)
+            .round(false).mode(ViewportMode.kViewportModeHub).build()
+        Scaling(
+            10.0,
+            // Só o perfil hubLandscapeSmall (Echo Show 5, 480 dp de altura): é o mais próximo da
+            // proporção do celular deitado (~2,2:1) e os layouts da home têm tamanhos para ele.
+            listOf(spec(1280, 1919, 800, 800)),
+            listOf(ViewportMode.kViewportModeHub),
+        )
+    }
 
     /** Carrega a biblioteca nativa em segundo plano (algumas centenas de ms na primeira vez). */
     fun init(context: Context, client: OkHttpClient) {
@@ -101,6 +121,16 @@ fun AplDocument(
             factory = { ctx ->
                 val layout = LayoutInflater.from(ctx).inflate(R.layout.apl_layout, null) as APLLayout
                 layout.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                layout.setScaling(Apl.hubScaling)
+                layout.addMetricsReadyListener { m ->
+                    DiagLog.i("apl", "viewport ${m.width()}x${m.height()} px, dpi ${m.dpi()}, modo ${m.mode()}, " +
+                        "${m.width() * 160 / m.dpi().coerceAtLeast(1)}x${m.height() * 160 / m.dpi().coerceAtLeast(1)} dp")
+                    runCatching {
+                        val t = com.amazon.apl.android.scaling.MetricsTransform.create(m)
+                        val sm = t.scaledMetrics
+                        DiagLog.i("apl", "escalado: ${sm.width()}x${sm.height()} px dpi ${sm.dpi()} → viewhost ${t.scaledViewhostWidth}x${t.scaledViewhostHeight}")
+                    }.onFailure { DiagLog.w("apl", "transform", it) }
+                }
                 val options = APLOptions.builder()
                     .packageLoader(Apl.packageLoader)
                     .contentDataRetriever { request, success, failure ->

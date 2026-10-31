@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Só no debug: permite abrir o modo Show via `adb shell am start` para testes. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity
+            android:name=".show.ShowModeActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>
