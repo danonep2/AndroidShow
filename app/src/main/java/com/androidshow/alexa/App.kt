@@ -5,6 +5,8 @@ import android.content.Context
 import com.androidshow.alexa.auth.AuthApi
 import com.androidshow.alexa.auth.AuthRepository
 import com.androidshow.alexa.auth.SecureStore
+import com.androidshow.alexa.avs.Attachments
+import com.androidshow.alexa.avs.AvsClient
 import com.androidshow.alexa.net.Http
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +19,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)
+        graph.alexa.start()
     }
 }
 
@@ -25,6 +28,8 @@ class AppGraph(val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val http = Http.client()
     val auth = AuthRepository(AuthApi(http), SecureStore(context))
+    private val attachments = Attachments()
+    val alexa = AlexaService(context, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
 }
 
 val Context.graph: AppGraph get() = (applicationContext as App).graph

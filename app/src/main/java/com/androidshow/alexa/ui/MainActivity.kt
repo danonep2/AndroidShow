@@ -1,14 +1,22 @@
 package com.androidshow.alexa.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,9 +35,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.androidshow.alexa.AlexaService
 import com.androidshow.alexa.auth.LoginActivity
+import com.androidshow.alexa.avs.AvsClient
 import com.androidshow.alexa.auth.Marketplace
 import com.androidshow.alexa.auth.Session
 import com.androidshow.alexa.graph
@@ -51,7 +63,7 @@ class MainActivity : ComponentActivity() {
                         if (s == null) {
                             LoginPanel { startActivity(LoginActivity.intent(this@MainActivity, it)) }
                         } else {
-                            SessionPanel(s, onLogout = graph.auth::logout)
+                            SessionPanel(s, graph.alexa, onLogout = graph.auth::logout)
                         }
                     }
                 }
@@ -88,8 +100,33 @@ private fun LoginPanel(onLogin: (Marketplace) -> Unit) {
 }
 
 @Composable
-private fun SessionPanel(s: Session, onLogout: () -> Unit) {
+private fun SessionPanel(s: Session, alexa: AlexaService, onLogout: () -> Unit) {
+    val context = LocalContext.current
+    val connection by alexa.connection.collectAsStateWithLifecycle()
+    val dialog by alexa.dialog.collectAsStateWithLifecycle()
+    val log by alexa.log.collectAsStateWithLifecycle()
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) alexa.startListening()
+    }
+
     Text("Conectado como ${s.customerName ?: "?"} (${s.marketplace.domain})")
     Text("Dispositivo: ${s.deviceName ?: s.deviceSerial}", style = MaterialTheme.typography.bodySmall)
-    OutlinedButton(onClick = onLogout) { Text("Sair") }
+    Text("AVS: ${connection.name} · ${dialog.name}")
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(
+            enabled = connection == AvsClient.State.Connected,
+            onClick = {
+                when {
+                    dialog == AlexaService.Dialog.Listening -> alexa.stopListening()
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED -> alexa.startListening()
+                    else -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+        ) { Text(if (dialog == AlexaService.Dialog.Listening) "Parar" else "Falar com a Alexa") }
+        OutlinedButton(onClick = onLogout) { Text("Sair") }
+    }
+    LazyColumn(Modifier.fillMaxWidth()) {
+        items(log.asReversed()) { Text(it, style = MaterialTheme.typography.bodySmall) }
+    }
 }
