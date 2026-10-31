@@ -41,7 +41,7 @@ class AlexaService(
     enum class Dialog { Idle, Listening, Thinking, Speaking }
 
     /** Diretivas de tela (TemplateRuntime, APL, Home); devolve true se tratou. Ligado na etapa do modo Show. */
-    var displayHandler: (suspend (Directive) -> Boolean)? = null
+    var displayHandler: ((Directive) -> Boolean)? = null
 
     /** Itens extras de contexto (ex.: estado da janela do modo Show). */
     val contextContributors = mutableListOf<() -> List<JsonObject>>()

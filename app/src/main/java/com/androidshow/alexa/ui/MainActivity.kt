@@ -1,6 +1,7 @@
 package com.androidshow.alexa.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -45,6 +46,7 @@ import com.androidshow.alexa.avs.AvsClient
 import com.androidshow.alexa.auth.Marketplace
 import com.androidshow.alexa.auth.Session
 import com.androidshow.alexa.graph
+import com.androidshow.alexa.show.ShowModeActivity
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,6 +126,7 @@ private fun SessionPanel(s: Session, alexa: AlexaService, onLogout: () -> Unit) 
                 }
             },
         ) { Text(if (dialog == AlexaService.Dialog.Listening) "Parar" else "Falar com a Alexa") }
+        Button(onClick = { context.startActivity(Intent(context, ShowModeActivity::class.java)) }) { Text("Modo Show") }
         OutlinedButton(onClick = onLogout) { Text("Sair") }
     }
     LazyColumn(Modifier.fillMaxWidth()) {

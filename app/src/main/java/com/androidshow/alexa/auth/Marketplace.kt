@@ -1,10 +1,10 @@
 package com.androidshow.alexa.auth
 
 /** Região do AVS: define o gateway de voz e a API da Alexa (Config.xml do app Windows). */
-enum class AvsRegion(val gateway: String, val alexaApi: String) {
-    NA("alexa.na.gateway.devices.a2z.com", "api.amazonalexa.com"),
-    EU("alexa.eu.gateway.devices.a2z.com", "api.eu.amazonalexa.com"),
-    FE("alexa.fe.gateway.devices.a2z.com", "api.fe.amazonalexa.com"),
+enum class AvsRegion(val gateway: String, val alexaApi: String, val identityHost: String) {
+    NA("alexa.na.gateway.devices.a2z.com", "api.amazonalexa.com", "api.amazon.com"),
+    EU("alexa.eu.gateway.devices.a2z.com", "api.eu.amazonalexa.com", "api.amazon.co.uk"),
+    FE("alexa.fe.gateway.devices.a2z.com", "api.fe.amazonalexa.com", "api.amazon.co.jp"),
 }
 
 /** Loja Amazon da conta. Define domínio de login, de registro e o site da Alexa. */
@@ -27,7 +27,8 @@ enum class Marketplace(val label: String, val domain: String, val region: AvsReg
         get() = if (domain == "amazon.com") ASSOC_HANDLE else "${ASSOC_HANDLE}_${domain.substringAfterLast('.')}"
 
     val wwwHost get() = "www.$domain"
-    val apiHost get() = "api.$domain"
+    /** Serviço de identidade (MAP/"panda") da região. [Observado] o Windows registra em api.amazon.com. */
+    val apiHost get() = region.identityHost
     val alexaWebHost get() = "alexa.$domain"
     val locale get() = language.replace('_', '-')
 

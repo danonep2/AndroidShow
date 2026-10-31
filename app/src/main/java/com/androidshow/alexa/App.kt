@@ -8,6 +8,8 @@ import com.androidshow.alexa.auth.SecureStore
 import com.androidshow.alexa.avs.Attachments
 import com.androidshow.alexa.avs.AvsClient
 import com.androidshow.alexa.net.Http
+import com.androidshow.alexa.show.RemoteImages
+import com.androidshow.alexa.show.ShowModeController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +32,11 @@ class AppGraph(val context: Context) {
     val auth = AuthRepository(AuthApi(http), SecureStore(context))
     private val attachments = Attachments()
     val alexa = AlexaService(context, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
+    val show = ShowModeController(scope).also { show ->
+        RemoteImages.http = http
+        alexa.displayHandler = show::handle
+        alexa.contextContributors += show::contextItems
+    }
 }
 
 val Context.graph: AppGraph get() = (applicationContext as App).graph
