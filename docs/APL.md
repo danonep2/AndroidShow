@@ -41,6 +41,9 @@ O repositório público (tag e `main`) não compila sem ajustes:
   sistema no peso pedido.
 - **Métodos ausentes**: `Text.getLineBounds`, `Video.setFromEvent` e
   `VideoViewAdapter.inflateViewWithNonZeroDimensions` (caso legado de vídeo, vira no-op).
+- **Eventos sem tratamento**: `buildEvent` não ligava PlayMedia, ControlMedia, RequestLineBounds,
+  Preroll e Speak (NPE a cada frame). Os quatro primeiros usam as classes existentes; Preroll e
+  Speak (SpeakItem) se resolvem na hora, já que o app não tem TTS do APL.
 - **Classe duplicada**: `devtools.controllers.DTConnection` antiga removida em favor de `impl`.
 - `settings.gradle` reduzido aos módulos necessários.
 
