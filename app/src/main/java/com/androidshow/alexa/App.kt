@@ -33,7 +33,7 @@ class AppGraph(val context: Context) {
     val http = Http.client()
     val auth = AuthRepository(AuthApi(http), SecureStore(context))
     private val attachments = Attachments()
-    val alexa = AlexaService(context, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
+    val alexa = AlexaService(context, http, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
     val show = ShowModeController(scope).also { show ->
         RemoteImages.http = http
         alexa.displayHandler = show::handle

@@ -6,9 +6,11 @@ import android.util.Log
 import com.androidshow.alexa.auth.AuthRepository
 import com.androidshow.alexa.avs.Attachments
 import com.androidshow.alexa.avs.AvsClient
+import com.androidshow.alexa.avs.Capabilities
 import com.androidshow.alexa.avs.Directive
 import com.androidshow.alexa.avs.avsEvent
 import com.androidshow.alexa.avs.avsState
+import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.net.long
 import com.androidshow.alexa.net.obj
 import com.androidshow.alexa.net.str
@@ -25,6 +27,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.OkHttpClient
 import java.util.UUID
 
 /**
@@ -33,6 +36,7 @@ import java.util.UUID
  */
 class AlexaService(
     context: Context,
+    private val http: OkHttpClient,
     private val auth: AuthRepository,
     private val avs: AvsClient,
     private val attachments: Attachments,
@@ -47,6 +51,7 @@ class AlexaService(
     val contextContributors = mutableListOf<() -> List<JsonObject>>()
 
     private val audio = context.getSystemService(AudioManager::class.java)
+    private val debugAudio = if (BuildConfig.DEBUG) java.io.File(context.cacheDir, "last_capture.pcm") else null
     private val player = SpeechPlayer()
 
     private val _dialog = MutableStateFlow(Dialog.Idle)
@@ -61,12 +66,17 @@ class AlexaService(
     private var speechToken = ""
     private var speechActivity = "FINISHED"
     private var started = false
+    private var capabilitiesPublished = false
+    private val display = context.resources.displayMetrics
 
     fun start() {
         if (started) return
         started = true
         avs.context = ::buildContext
-        avs.onConnected = { avs.sendEvent(avsEvent("System", "SynchronizeState")) }
+        avs.onConnected = {
+            publishCapabilities()
+            avs.sendEvent(avsEvent("System", "SynchronizeState"))
+        }
 
         scope.launch {
             auth.session.collect { s -> if (s != null) avs.start(s.marketplace.region) else avs.stop() }
@@ -84,10 +94,20 @@ class AlexaService(
         }
     }
 
+    /** Publica as interfaces suportadas (uma vez por processo); 204 = aceitas. */
+    private suspend fun publishCapabilities() {
+        if (capabilitiesPublished) return
+        val s = auth.session.value ?: return
+        val caps = Capabilities.list(maxOf(display.widthPixels, display.heightPixels), minOf(display.widthPixels, display.heightPixels))
+        val status = runCatching { Capabilities.publish(http, auth, s, caps) }
+            .onFailure { DiagLog.w("caps", "PUT capabilities falhou", it) }.getOrNull()
+        capabilitiesPublished = status == 204
+    }
+
     /** Toque no microfone: abre um Recognize e transmite o áudio até o StopCapture. */
     fun startListening(initiator: JsonObject? = null): Job? {
         if (capture != null) return null
-        val mic = AudioCapture()
+        val mic = AudioCapture(debugCopy = debugAudio)
         capture = mic
         _dialog.value = Dialog.Listening
         val payload = buildJsonObject {
