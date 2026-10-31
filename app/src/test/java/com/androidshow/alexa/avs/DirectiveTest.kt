@@ -28,6 +28,15 @@ class DirectiveTest {
     }
 
     @Test
+    fun extractsBoundaryFromAvsContentType() {
+        // Cabeçalho real do AVS: o parâmetro type=application/json faz o OkHttp rejeitar o MediaType.
+        assertEquals("------abcde123", boundaryOf("multipart/related; boundary=------abcde123; type=application/json"))
+        assertEquals("abc", boundaryOf("multipart/form-data; boundary=\"abc\""))
+        assertNull(boundaryOf("application/json"))
+        assertNull(boundaryOf(""))
+    }
+
+    @Test
     fun attachmentArrivingAfterDirectiveIsDelivered() = runTest {
         val store = Attachments()
         val waiting = async { store.take("cid:abc") }

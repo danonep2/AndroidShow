@@ -142,7 +142,7 @@ class AvsClient(
             logResponse("directives", response)
             checkAuthorized(response)
             onOpen()
-            if (!readParts(call, response)) throw IOException("downchannel sem multipart")
+            if (!readParts(call, response, tap = "downchannel")) throw IOException("downchannel sem multipart")
         }
     }
 
@@ -171,7 +171,7 @@ class AvsClient(
             logResponse(event.toString().substringAfter("\"name\":\"").substringBefore('"'), response)
             checkAuthorized(response)
             if (response.code == 204) return
-            readParts(call, response)
+            readParts(call, response, tap = "evento")
         }
     }
 
@@ -201,13 +201,20 @@ class AvsClient(
 
     /**
      * Lê as partes multipart à medida que chegam. Cancelar a coroutine cancela a chamada HTTP.
-     * Devolve false se a resposta não era multipart (o corpo vai para o diagnóstico).
+     * Devolve false se a resposta não era multipart (o início do corpo vai para o diagnóstico).
+     *
+     * O boundary é lido do cabeçalho cru: o AVS manda `type=application/json` como parâmetro, que o
+     * parser de MediaType do OkHttp rejeita (`contentType()` vira null) [Observado no Redmi].
      */
-    private suspend fun readParts(call: Call, response: Response): Boolean = coroutineScope {
+    private suspend fun readParts(call: Call, response: Response, tap: String? = null): Boolean = coroutineScope {
         val body = response.body ?: return@coroutineScope false
-        if (body.contentType()?.type != "multipart") {
-            val text = withContext(Dispatchers.IO) { runCatching { body.string() }.getOrDefault("") }
-            DiagLog.w("avs", "resposta não multipart (${body.contentType()}): ${text.take(2000)}")
+        val contentType = response.header("Content-Type").orEmpty()
+        val boundary = boundaryOf(contentType)
+        if (boundary == null) {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { body.source().run { request(2000); buffer.snapshot().utf8() } }.getOrDefault("")
+            }
+            DiagLog.w("avs", "resposta não multipart ($contentType): ${text.take(2000)}")
             return@coroutineScope false
         }
         val canceller = launch {
@@ -215,7 +222,7 @@ class AvsClient(
         }
         try {
             withContext(Dispatchers.IO) {
-                MultipartReader(body).use { reader ->
+                MultipartReader(body.source(), boundary).use { reader ->
                     while (true) {
                         val part = reader.nextPart() ?: break
                         val bytes = part.body.use { it.readByteArray() }
@@ -223,10 +230,11 @@ class AvsClient(
                         val type = part.headers["Content-Type"].orEmpty()
                         if (contentId != null && !type.contains("json")) {
                             attachments.put(contentId, bytes)
+                            DiagLog.i("avs", "anexo $contentId (${bytes.size} bytes) via ${tap ?: "-"}")
                         } else {
                             val directive = Directive.parse(bytes.decodeToString())
                             if (directive != null) {
-                                DiagLog.i("avs", "diretiva ${directive.key}")
+                                DiagLog.i("avs", "diretiva ${directive.key} via ${tap ?: "-"}")
                                 _directives.emit(directive)
                             } else {
                                 DiagLog.w("avs", "parte ignorada ($type): ${bytes.decodeToString().take(500)}")
@@ -258,6 +266,7 @@ class AvsClient(
         }
     }
 
+
     private companion object {
         const val TAG = "AvsClient"
         const val PING_INTERVAL_MS = 5 * 60_000L
@@ -265,4 +274,11 @@ class AvsClient(
         const val MAX_BACKOFF_MS = 60_000L
         const val STABLE_CONNECTION_MS = 30_000L
     }
+}
+
+/** Extrai o boundary de um Content-Type multipart, tolerando parâmetros fora do padrão. */
+internal fun boundaryOf(contentType: String): String? {
+    if (!contentType.trimStart().startsWith("multipart/", ignoreCase = true)) return null
+    return Regex("""boundary\s*=\s*"?([^";]+)"?""", RegexOption.IGNORE_CASE)
+        .find(contentType)?.groupValues?.get(1)?.trim()
 }
