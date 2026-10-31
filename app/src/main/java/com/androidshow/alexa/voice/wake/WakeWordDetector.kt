@@ -52,7 +52,7 @@ class WakeWordDetector(
         DiagLog.i(
             "wake",
             "custo médio ${"%.2f".format(avgMs)} ms/quadro (${"%.1f".format(avgMs / Microphone.FRAME_MS * 100)}% de um núcleo), " +
-                "maior score ${"%.2f".format(peakScore)}",
+                "maior score ${"%.2f".format(peakScore)} | ${engine.resetStats().summary()}",
         )
         frames = 0
         busyNanos = 0

@@ -52,6 +52,7 @@ import com.androidshow.alexa.auth.Marketplace
 import com.androidshow.alexa.auth.Session
 import com.androidshow.alexa.graph
 import com.androidshow.alexa.show.ShowModeActivity
+import com.androidshow.alexa.voice.wake.WakeWordService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,6 +78,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * O Android 14+ só permite iniciar o serviço de microfone com o app visível; por isso ele é
+     * (re)iniciado aqui e não no Application. Depois de iniciado, segue com a tela apagada.
+     */
+    override fun onResume() {
+        super.onResume()
+        if (graph.wakeWord.config.value.enabled &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        ) WakeWordService.start(this)
     }
 
     private fun copyDiagnostics() {

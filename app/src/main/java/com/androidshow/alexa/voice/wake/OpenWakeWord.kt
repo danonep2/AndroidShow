@@ -17,14 +17,45 @@ import java.nio.FloatBuffer
  * 2. embedding_model.onnx: janela de 76 quadros mel → vetor de 96 (um a cada 80 ms);
  * 3. modelo da palavra: últimos N vetores (16 no "alexa") → probabilidade 0..1.
  *
+ * Otimizações sobre o original:
+ * - XNNPACK (kernels ARM otimizados) em vez do executor padrão de CPU;
+ * - porta de energia: com ~1 s seguido de silêncio, reaproveita o embedding de silêncio e pula
+ *   embedding e classificador (a palavra não pode estar num trecho sem som).
+ *
  * Uma instância por palavra; chamar [process] sempre na mesma thread.
  */
-class OpenWakeWord(context: Context, modelFile: String) : Closeable {
+class OpenWakeWord(context: Context, modelFile: String, val xnnpack: Boolean = true) : Closeable {
     private val env = OrtEnvironment.getEnvironment()
     private val options = OrtSession.SessionOptions().apply {
         setIntraOpNumThreads(1)
         setInterOpNumThreads(1)
+        addConfigEntry("session.intra_op.allow_spinning", "0")
+        if (xnnpack) addXnnpack(mapOf("intra_op_num_threads" to "1"))
     }
+
+    /** Tempos acumulados por etapa, para medir o custo real no aparelho. */
+    class Stats {
+        var frames = 0
+        var gated = 0
+        var melNanos = 0L
+        var embeddingNanos = 0L
+        var classifierNanos = 0L
+
+        fun summary(): String {
+            val n = frames.coerceAtLeast(1)
+            fun ms(v: Long) = "%.2f".format(v / n / 1e6)
+            return "mel ${ms(melNanos)} + embedding ${ms(embeddingNanos)} + classificador ${ms(classifierNanos)} ms/quadro, " +
+                "${gated * 100 / n}% dos quadros em silêncio (pulados)"
+        }
+    }
+
+    var stats = Stats()
+        private set
+
+    private var noiseFloor = 200f
+    private var hangover = 0
+    private var silentEmbedding: FloatArray? = null
+    private var gatedSinceRefresh = 0
     private val mel = session(context, "$DIR/melspectrogram.onnx")
     private val embedding = session(context, "$DIR/embedding_model.onnx")
     private val classifier = session(context, "$DIR/$modelFile")
@@ -52,29 +83,68 @@ class OpenWakeWord(context: Context, modelFile: String) : Closeable {
         // O openWakeWord começa o buffer mel com 76 quadros de 1.
         repeat(EMBEDDING_WINDOW) { melFrames.addLast(FloatArray(MEL_BANDS) { 1f }) }
         features.clear()
+        hangover = HANGOVER_FRAMES
     }
+
+    fun resetStats(): Stats = stats.also { stats = Stats() }
 
     /** Processa um quadro de 80 ms e devolve a probabilidade da palavra (0 enquanto aquece). */
     fun process(frame: ShortArray): Float {
         require(frame.size == Microphone.FRAME_SAMPLES)
+        stats.frames++
         System.arraycopy(raw, Microphone.FRAME_SAMPLES, raw, 0, RAW_CONTEXT)
-        for (i in frame.indices) raw[RAW_CONTEXT + i] = frame[i].toFloat()
+        var squares = 0.0
+        for (i in frame.indices) {
+            val v = frame[i].toFloat()
+            raw[RAW_CONTEXT + i] = v
+            squares += v * v
+        }
+        val rms = kotlin.math.sqrt(squares / frame.size).toFloat()
+        val loud = rms > maxOf(noiseFloor * GATE_RATIO, MIN_GATE_RMS)
+        if (loud) hangover = HANGOVER_FRAMES else {
+            if (hangover > 0) hangover--
+            noiseFloor = noiseFloor * 0.95f + rms * 0.05f
+        }
 
+        // O mel roda sempre: a janela do embedding precisa dos últimos 760 ms reais quando a voz voltar.
+        var t = System.nanoTime()
         run(mel, melInput, raw, longArrayOf(1, raw.size.toLong())) { out ->
             @Suppress("UNCHECKED_CAST")
             val spec = (out as Array<Array<Array<FloatArray>>>)[0][0]
             for (row in spec) melFrames.addLast(FloatArray(MEL_BANDS) { row[it] / 10f + 2f })
         }
         while (melFrames.size > MAX_MEL_FRAMES) melFrames.removeFirst()
+        stats.melNanos += System.nanoTime() - t
 
+        val silent = hangover == 0
+        val cached = silentEmbedding
+        if (silent && cached != null && features.size >= featureFrames && gatedSinceRefresh < REFRESH_SILENCE_FRAMES) {
+            gatedSinceRefresh++
+            features.addLast(cached)
+            while (features.size > MAX_FEATURES) features.removeFirst()
+            stats.gated++
+            return 0f
+        }
+
+        t = System.nanoTime()
         val start = melFrames.size - EMBEDDING_WINDOW
         for (r in 0 until EMBEDDING_WINDOW) System.arraycopy(melFrames[start + r], 0, embeddingWindow, r * MEL_BANDS, MEL_BANDS)
         run(embedding, embeddingInput, embeddingWindow, longArrayOf(1, EMBEDDING_WINDOW.toLong(), MEL_BANDS.toLong(), 1)) { out ->
             @Suppress("UNCHECKED_CAST")
-            features.addLast((out as Array<Array<Array<FloatArray>>>)[0][0][0].copyOf())
+            val e = (out as Array<Array<Array<FloatArray>>>)[0][0][0].copyOf()
+            features.addLast(e)
+            // Atualiza o embedding de silêncio de tempos em tempos (o ruído do ambiente muda).
+            if (silent) {
+                silentEmbedding = e
+                gatedSinceRefresh = 0
+            }
         }
         while (features.size > MAX_FEATURES) features.removeFirst()
+        stats.embeddingNanos += System.nanoTime() - t
         if (features.size < featureFrames) return 0f
+        if (silent) return 0f
+
+        t = System.nanoTime()
 
         val first = features.size - featureFrames
         for (r in 0 until featureFrames) System.arraycopy(features[first + r], 0, classifierWindow, r * EMBEDDING_SIZE, EMBEDDING_SIZE)
@@ -83,6 +153,7 @@ class OpenWakeWord(context: Context, modelFile: String) : Closeable {
             @Suppress("UNCHECKED_CAST")
             score = (out as Array<FloatArray>)[0][0]
         }
+        stats.classifierNanos += System.nanoTime() - t
         return score
     }
 
@@ -110,6 +181,28 @@ class OpenWakeWord(context: Context, modelFile: String) : Closeable {
         private const val EMBEDDING_SIZE = 96
         private const val MAX_MEL_FRAMES = 10 * 97
         private const val MAX_FEATURES = 120
+        /** ~1 s sem som: cobre a janela de 760 ms do embedding. */
+        private const val HANGOVER_FRAMES = 12
+        private const val GATE_RATIO = 2f
+        private const val MIN_GATE_RMS = 150f
+        /** Recalcula o embedding de silêncio a cada ~4 s de silêncio contínuo. */
+        private const val REFRESH_SILENCE_FRAMES = 50
+
+        /** Compara o custo por quadro com e sem XNNPACK no próprio aparelho (só em debug). */
+        fun benchmark(context: Context, modelFile: String, frames: Int = 150) {
+            val rnd = java.util.Random(1)
+            val audio = List(frames) { ShortArray(Microphone.FRAME_SAMPLES) { (rnd.nextGaussian() * 2000).toInt().toShort() } }
+            for (accel in listOf(false, true)) {
+                OpenWakeWord(context, modelFile, accel).use { e ->
+                    audio.take(20).forEach { e.process(it) } // aquecimento
+                    e.resetStats()
+                    val t0 = System.nanoTime()
+                    audio.forEach { e.process(it) }
+                    val total = (System.nanoTime() - t0) / frames / 1e6
+                    DiagLog.i("wake", "benchmark ${if (accel) "XNNPACK" else "CPU padrão"}: ${"%.2f".format(total)} ms/quadro (${e.stats.summary()})")
+                }
+            }
+        }
 
         /** Modelos de palavra disponíveis nos assets (tudo exceto os dois modelos de base). */
         fun availableModels(context: Context): List<String> =

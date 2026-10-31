@@ -12,7 +12,6 @@ import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.show.RemoteImages
 import com.androidshow.alexa.show.ShowModeController
 import com.androidshow.alexa.voice.Microphone
-import com.androidshow.alexa.voice.wake.WakeWordService
 import com.androidshow.alexa.voice.wake.WakeWordSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +26,6 @@ class App : Application() {
         DiagLog.init(this)
         graph = AppGraph(this)
         graph.alexa.start()
-        if (graph.wakeWord.config.value.enabled) runCatching { WakeWordService.start(this) }
     }
 }
 

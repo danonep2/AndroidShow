@@ -51,7 +51,11 @@ class WakeWordService : android.app.Service() {
         detector = d
         g.microphone.add(d)
         scope.launch { g.alexa.dialog.collect { d.paused = it != AlexaService.Dialog.Idle } }
-        DiagLog.i("wake", "ouvindo \"${config.label}\" (limiar ${config.threshold}, verificação na nuvem ${config.cloudVerified})")
+        if (com.androidshow.alexa.BuildConfig.DEBUG) {
+            val ctx = applicationContext
+            Thread({ runCatching { OpenWakeWord.benchmark(ctx, config.model) }.onFailure { DiagLog.w("wake", "benchmark falhou", it) } }, "wake-benchmark").start()
+        }
+        DiagLog.i("wake", "ouvindo \"${config.label}\" (XNNPACK ${e.xnnpack}, limiar ${config.threshold}, verificação na nuvem ${config.cloudVerified})")
     }
 
     override fun onDestroy() {
