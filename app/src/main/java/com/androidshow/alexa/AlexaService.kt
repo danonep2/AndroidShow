@@ -76,6 +76,7 @@ class AlexaService(
         avs.onConnected = {
             publishCapabilities()
             avs.sendEvent(avsEvent("System", "SynchronizeState"))
+            sendLocale()
         }
 
         scope.launch {
@@ -102,6 +103,19 @@ class AlexaService(
         val status = runCatching { Capabilities.publish(http, auth, s, caps) }
             .onFailure { DiagLog.w("caps", "PUT capabilities falhou", it) }.getOrNull()
         capabilitiesPublished = status == 204
+    }
+
+    /** Idioma do reconhecimento: um dispositivo recém-registrado não tem locale definido. */
+    private suspend fun sendLocale() {
+        val locale = auth.session.value?.marketplace?.locale ?: return
+        val payload = buildJsonObject {
+            put("settings", JsonArray(listOf(buildJsonObject {
+                put("key", "locale")
+                put("value", locale)
+            })))
+        }
+        runCatching { avs.sendEvent(avsEvent("Settings", "SettingsUpdated", payload)) }
+            .onFailure { DiagLog.w("avs", "SettingsUpdated falhou", it) }
     }
 
     /** Toque no microfone: abre um Recognize e transmite o áudio até o StopCapture. */
