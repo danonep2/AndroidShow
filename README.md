@@ -19,8 +19,9 @@ Reimplementa o que foi observado em dois clientes existentes:
 | Rede | OkHttp 4 (HTTP/2, corpo duplex, `MultipartReader`) | o AVS exige HTTP/2; um só pool de conexões |
 | JSON | kotlinx.serialization | sem reflexão, amigável ao R8 |
 | DI | manual (`AppGraph`) | zero custo de inicialização |
+| Imagens | carregador próprio (OkHttp + LRU) | sem Coil/Glide |
 | Segredos | AES-GCM com chave no Android Keystore | sem dependência `androidx.security` |
-| Release | R8 completo + shrink de recursos | APK pequeno |
+| Release | R8 completo + shrink de recursos | APK release de ~1,4 MB |
 
 minSdk 26, targetSdk 36.
 
@@ -30,9 +31,10 @@ minSdk 26, targetSdk 36.
 app/src/main/java/com/androidshow/alexa/
   auth/   login (WebView), registro MAP, renovação de token, armazenamento cifrado
   net/    cliente HTTP compartilhado e utilitários
-  avs/    cliente AVS: downchannel, eventos, diretivas, contexto      (etapa 2)
-  voice/  captura de áudio e reprodução de fala                       (etapa 2)
-  show/   modo Show: tela cheia, cartões e APL                         (etapa 3)
+  avs/    cliente AVS: downchannel, eventos, diretivas, anexos
+  voice/  captura de áudio (corpo duplex) e reprodução de fala
+  show/   modo Show: tela cheia, cartões, player e APL
+  AlexaService.kt  orquestra sessão, diretivas e contexto
   ui/     telas do app
 docs/      arquitetura e notas de engenharia reversa
 ```
@@ -49,7 +51,9 @@ Requer JDK 17+ e Android SDK (platform 36).
 ## Estado
 
 - [x] Etapa 1 — autenticação (login Amazon, `auth/register`, refresh, cookies)
-- [ ] Etapa 2 — AVS e comandos de voz
-- [ ] Etapa 3 — modo Show
+- [x] Etapa 2 — AVS e comandos de voz (Speak, ExpectSpeech, Speaker, SetEndpoint)
+- [x] Etapa 3 — modo Show: tela cheia, relógio, cartões TemplateRuntime, player, APL simplificado
+- [ ] Etapa 4 — renderizador APL completo e home `Alexa.Presentation.Home` (depende da decompilação do `Alexa.dll`)
+- [ ] Etapa 5 — Casa Inteligente via cookies (`api/phoenix`), palavra de ativação
 
 Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

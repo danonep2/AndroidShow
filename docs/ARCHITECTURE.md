@@ -40,7 +40,28 @@ Pendente de confirmação no `Alexa.dll` (pedido à sessão de análise do app W
   O corpo é *duplex*: o microfone continua enviando enquanto as diretivas (`StopCapture`) chegam.
 - `GET /ping` a cada 5 min.
 
-## 3. Modo Show (etapa 3)
+`AlexaService` consome as diretivas em duas filas: `StopCapture` age na hora (fecha o microfone
+enquanto o upload duplex ainda está aberto); o resto é processado em ordem, então um
+`ExpectSpeech` só reabre o microfone depois que o `Speak` anterior terminou de tocar.
+O áudio do `Speak` chega em outra parte multipart (`cid:`); `Attachments` deixa a diretiva esperar
+pelo anexo.
 
-Tela cheia que fica ligada, mostra a home multimodal (`Alexa.Presentation.Home`), cartões
-`TemplateRuntime` e documentos APL.
+## 3. Modo Show
+
+- `ShowModeActivity`: tela cheia imersiva, `FLAG_KEEP_SCREEN_ON`, aparece sobre a tela de bloqueio.
+  Relógio em repouso, botão de microfone e barra de luz (ouvindo/pensando/falando).
+- `ShowModeController` decide a tela a partir das diretivas:
+  - `TemplateRuntime.RenderTemplate` → cartão (BodyTemplate1/2, ListTemplate1, WeatherTemplate), volta à home em 20 s;
+  - `TemplateRuntime.RenderPlayerInfo` → player;
+  - `Alexa.Presentation.APL.RenderDocument` → por enquanto um renderizador simplificado
+    (textos e imagem dos `datasources`), com o tempo limite de `timeoutType`;
+  - `Alexa.Presentation.Home.*` → payload guardado e registrado no log; formato a confirmar.
+- Enquanto a tela está aberta, o contexto de cada evento inclui `Alexa.Display.Window.WindowState`
+  (e `Alexa.Presentation.APL.RenderedDocumentState` com APL na tela), para a nuvem saber que há tela.
+
+### Pendências
+
+1. Confirmar no `Alexa.dll` (Ghidra) o protocolo do `MMHomeAgent`/`ShowModeAgent`: eventos, heartbeat,
+   contexto e se o app publica capabilities.
+2. Trocar o APL simplificado pelo renderizador open source `apl-viewhost-web` num WebView
+   (ponte `renderDocument`/`executeCommands`/`processSendEvent`, como o `aplInterface.js` do Windows).
