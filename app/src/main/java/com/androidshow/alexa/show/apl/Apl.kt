@@ -110,9 +110,9 @@ fun AplDocument(
     document: String,
     data: (String) -> String?,
     modifier: Modifier = Modifier,
-    onSendEvent: (Array<Any?>) -> Unit = {},
     /** Recria a view (e o documento) quando muda, mesmo com o mesmo documento. */
     renderKey: Any = Unit,
+    onSendEvent: (Array<Any?>) -> Unit = {},
 ) {
     // Um controlador por documento: key() recria a view (e o render) só quando o documento muda.
     key(document, renderKey) {
