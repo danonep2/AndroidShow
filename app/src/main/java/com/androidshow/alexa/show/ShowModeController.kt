@@ -56,6 +56,10 @@ class ShowModeController(private val scope: CoroutineScope) {
 
     /** Handler de diretivas visuais. Devolve false para o que não é do modo Show. */
     fun handle(d: Directive): Boolean {
+        if (d.namespace in VISUAL_NAMESPACES) {
+            com.androidshow.alexa.diag.DiagLog.i("show", "${d.key}: ${d.payload.toString().length} bytes")
+            com.androidshow.alexa.diag.DiagLog.dump(d.key, d.payload.toString())
+        }
         when (d.namespace) {
             "TemplateRuntime" -> when (d.name) {
                 "RenderTemplate" -> show(ShowScreen.Card(d.payload), CARD_TIMEOUT_MS)
@@ -138,6 +142,7 @@ class ShowModeController(private val scope: CoroutineScope) {
 
     private companion object {
         const val TAG = "ShowMode"
+        val VISUAL_NAMESPACES = setOf("TemplateRuntime", "Alexa.Presentation.APL", "Alexa.Presentation.Home", "Alexa.Display.Window", "Alexa.Display")
         const val WINDOW_ID = "app_window"
         const val WINDOW_TEMPLATE = "fullscreen_mobile"
         const val CARD_TIMEOUT_MS = 20_000L

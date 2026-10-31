@@ -24,6 +24,12 @@ object DiagLog {
     fun i(scope: String, message: String) = write("I", scope, message, null)
     fun w(scope: String, message: String, error: Throwable? = null) = write("W", scope, message, error)
 
+    /** Guarda o último payload de um tipo (ex.: documento APL) em files/dump-<nome>.json, mascarado. */
+    fun dump(name: String, text: String) {
+        val dir = file?.parentFile ?: return
+        runCatching { java.io.File(dir, "dump-$name.json").writeText(redact(text)) }
+    }
+
     fun read(): String = file?.takeIf { it.exists() }?.readText().orEmpty()
 
     fun clear() {
