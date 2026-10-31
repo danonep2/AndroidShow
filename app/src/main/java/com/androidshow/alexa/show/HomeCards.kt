@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,11 +82,13 @@ private fun HomeCard(item: JsonObject) {
     val hint = (d.str("alexaHintText") ?: d.str("hint") ?: d.str("hintText"))?.replace("{WakeWord}", "Alexa")
     val highLow = listOfNotNull(d.str("highTemperature"), d.str("lowTemperature"))
     val album = d.str("cardAlbumImage") != null
+    // Contraste dinâmico: começa claro sobre véu escuro e se ajusta ao brilho medido da imagem.
+    var tone by remember(image) { mutableStateOf(CardTone.Light) }
 
     Box(Modifier.fillMaxSize()) {
         if (image != null && !album) {
-            RemoteImage(image, Modifier.fillMaxSize(), ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x22000000), Color(0xE6000000)))))
+            RemoteImage(image, Modifier.fillMaxSize(), ContentScale.Crop, onLoaded = { tone = CardTone.of(it) })
+            Box(Modifier.fillMaxSize().background(tone.scrim))
         }
         Row(
             Modifier.align(Alignment.BottomStart).padding(horizontal = 48.dp, vertical = 56.dp),
@@ -94,18 +97,18 @@ private fun HomeCard(item: JsonObject) {
         ) {
             if (album) RemoteImage(image, Modifier.size(220.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                header?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color(0xFF8FB8FF)) }
+                header?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelLarge, color = tone.accent) }
                 if (big != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        icon?.let { Text(it, fontSize = 64.sp) }
-                        Text(big, fontSize = 88.sp, fontWeight = FontWeight.Light)
-                        if (highLow.isNotEmpty()) Column { highLow.forEach { Text(it, style = MaterialTheme.typography.titleLarge) } }
+                        icon?.let { Text(it, fontSize = 64.sp, color = tone.text) }
+                        Text(big, fontSize = 88.sp, fontWeight = FontWeight.Light, color = tone.text)
+                        if (highLow.isNotEmpty()) Column { highLow.forEach { Text(it, style = MaterialTheme.typography.titleLarge, color = tone.secondary) } }
                     }
                 }
-                primary?.let { Text(it, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                secondary?.let { Text(it, style = MaterialTheme.typography.titleLarge, color = Color(0xFFCBD3DD), maxLines = 2) }
-                third?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Color(0xFF9AA4B1)) }
-                hint?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF8FB8FF), modifier = Modifier.padding(top = 8.dp)) }
+                primary?.let { Text(it, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, color = tone.text) }
+                secondary?.let { Text(it, style = MaterialTheme.typography.titleLarge, color = tone.secondary, maxLines = 2) }
+                third?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = tone.muted) }
+                hint?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = tone.accent, modifier = Modifier.padding(top = 8.dp)) }
             }
         }
     }

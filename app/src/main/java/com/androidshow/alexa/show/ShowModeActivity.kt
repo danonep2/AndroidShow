@@ -22,10 +22,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -67,30 +69,32 @@ class ShowModeActivity : ComponentActivity() {
         val alexa = graph.alexa
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
-                val screen by show.screen.collectAsStateWithLifecycle()
-                val dialog by alexa.dialog.collectAsStateWithLifecycle()
-                val utterance by alexa.utterance.collectAsStateWithLifecycle()
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black)
-                        .clickable(remember { MutableInteractionSource() }, indication = null) { show.dismiss() },
-                ) {
-                    Crossfade(screen, label = "screen") { s ->
-                        when (s) {
-                            is ShowScreen.Home -> HomeScreen(s.cards)
-                            is ShowScreen.Card -> TemplateCard(s.template)
-                            is ShowScreen.Player -> PlayerCard(s.info)
-                            is ShowScreen.Apl -> AplFallback(s)
+                CompositionLocalProvider(LocalContentColor provides Color.White) {
+                    val screen by show.screen.collectAsStateWithLifecycle()
+                    val dialog by alexa.dialog.collectAsStateWithLifecycle()
+                    val utterance by alexa.utterance.collectAsStateWithLifecycle()
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                            .clickable(remember { MutableInteractionSource() }, indication = null) { show.dismiss() },
+                    ) {
+                        Crossfade(screen, label = "screen") { s ->
+                            when (s) {
+                                is ShowScreen.Home -> HomeScreen(s.cards)
+                                is ShowScreen.Card -> TemplateCard(s.template)
+                                is ShowScreen.Player -> PlayerCard(s.info)
+                                is ShowScreen.Apl -> AplFallback(s)
+                            }
                         }
+                        FloatingActionButton(
+                            onClick = { toggleMic(alexa, dialog) },
+                            shape = CircleShape,
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
+                        ) { Text(if (dialog == AlexaService.Dialog.Listening) "■" else "🎤") }
+                        Caption(utterance.takeIf { dialog != AlexaService.Dialog.Idle }, Modifier.align(Alignment.BottomCenter))
+                        DialogBar(dialog, Modifier.align(Alignment.BottomCenter))
                     }
-                    FloatingActionButton(
-                        onClick = { toggleMic(alexa, dialog) },
-                        shape = CircleShape,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
-                    ) { Text(if (dialog == AlexaService.Dialog.Listening) "■" else "🎤") }
-                    Caption(utterance.takeIf { dialog != AlexaService.Dialog.Idle }, Modifier.align(Alignment.BottomCenter))
-                    DialogBar(dialog, Modifier.align(Alignment.BottomCenter))
                 }
             }
         }

@@ -57,9 +57,14 @@ fun RemoteImage(
     url: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Fit,
+    /** Recebe o bitmap carregado (ex.: para medir o brilho e ajustar o contraste do texto). */
+    onLoaded: ((Bitmap) -> Unit)? = null,
 ) {
     var bitmap by remember(url) { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(url) { bitmap = url?.let { RemoteImages.load(it) } }
+    LaunchedEffect(url) {
+        bitmap = url?.let { RemoteImages.load(it) }
+        bitmap?.let { onLoaded?.invoke(it) }
+    }
     val b = bitmap
     if (b != null) Image(b.asImageBitmap(), contentDescription = null, modifier = modifier, contentScale = contentScale)
     else Box(modifier)
