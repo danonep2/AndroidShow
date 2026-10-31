@@ -150,9 +150,9 @@ class AvsClient(
      * Envia um evento. Com [audio], o corpo é duplex: o áudio continua subindo enquanto as
      * diretivas da resposta (por exemplo, StopCapture) já estão sendo lidas.
      */
-    suspend fun sendEvent(event: JsonObject, audio: RequestBody? = null) {
+    suspend fun sendEvent(event: JsonObject, audio: RequestBody? = null, withContext: Boolean = true) {
         val metadata = buildJsonObject {
-            put("context", context())
+            if (withContext) put("context", context())
             put("event", event)
         }
         val multipart = MultipartBody.Builder()
@@ -170,7 +170,7 @@ class AvsClient(
         call.await().use { response ->
             logResponse(event.toString().substringAfter("\"name\":\"").substringBefore('"'), response)
             checkAuthorized(response)
-            if (response.code == 204) return
+            if (response.code == 204 || response.code == 202) return
             readParts(call, response, tap = "evento")
         }
     }

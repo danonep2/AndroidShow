@@ -50,6 +50,7 @@ class ShowModeController(private val scope: CoroutineScope) {
     private var timeout: Job? = null
 
     fun setVisible(visible: Boolean) {
+        com.androidshow.alexa.diag.DiagLog.i("show", if (visible) "modo Show aberto" else "modo Show fechado")
         _visible.value = visible
     }
 

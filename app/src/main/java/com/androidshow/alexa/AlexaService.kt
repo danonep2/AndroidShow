@@ -105,7 +105,10 @@ class AlexaService(
         val caps = Capabilities.list(maxOf(display.widthPixels, display.heightPixels), minOf(display.widthPixels, display.heightPixels))
         val status = runCatching { Capabilities.publish(http, auth, s, caps) }
             .onFailure { DiagLog.w("caps", "PUT capabilities falhou", it) }.getOrNull()
-        capabilitiesPublished = status == 204
+        val report = runCatching {
+            avs.sendEvent(Capabilities.discoveryEvent(s, caps, auth.accessToken()), withContext = false)
+        }.onFailure { DiagLog.w("caps", "AddOrUpdateReport falhou", it) }
+        capabilitiesPublished = status == 204 && report.isSuccess
     }
 
     /** Idioma do reconhecimento: um dispositivo recém-registrado não tem locale definido. */
@@ -193,10 +196,10 @@ class AlexaService(
             "Speaker.AdjustVolume" -> setVolume(currentVolume() + (d.payload.long("volume")?.toInt() ?: 0))
             "Speaker.SetMute" -> setMute(d.payload["mute"]?.toString() == "true")
             "System.SetEndpoint" -> d.payload.str("endpoint")?.let(avs::setEndpoint)
-            "System.ResetUserInactivity" -> Unit
+            "System.ResetUserInactivity", "Alexa.EventProcessed" -> Unit
             // A nuvem pede o estado atual; o contexto vai junto em todo evento.
             "System.ReportState" -> avs.sendEvent(avsEvent("System", "StateReport"))
-            else -> if (displayHandler?.invoke(d) != true) Log.i(TAG, "Diretiva sem handler: ${d.key} ${d.payload}")
+            else -> if (displayHandler?.invoke(d) != true) DiagLog.i("avs", "sem handler: ${d.key} ${d.payload.toString().take(300)}")
         }
     }
 
