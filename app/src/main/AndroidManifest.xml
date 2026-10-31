@@ -34,6 +34,7 @@
 
         <activity
             android:name=".show.ShowModeActivity"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"
             android:showWhenLocked="true"
