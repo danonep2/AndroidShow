@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
+import com.androidshow.alexa.net.obj
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -71,10 +72,10 @@ class ShowModeController(private val scope: CoroutineScope) {
     }
 
     /** Envia um evento da home; se o namespace DEV for recusado, tenta o público uma vez. */
-    private suspend fun sendHomeEvent(name: String) {
+    private suspend fun sendHomeEvent(name: String, payload: JsonObject = JsonObject(emptyMap())) {
         val send = sendEvent ?: return
         for (ns in listOf(homeNamespace) + HOME_NAMESPACES.filter { it != homeNamespace }) {
-            val ok = runCatching { send(avsEvent(ns, name)) }
+            val ok = runCatching { send(avsEvent(ns, name, payload)) }
                 .onFailure { DiagLog.w("show", "$ns.$name recusado: ${it.message}") }
                 .isSuccess
             if (ok) {
@@ -85,7 +86,28 @@ class ShowModeController(private val scope: CoroutineScope) {
         }
     }
 
-    private fun homeScreen() = ShowScreen.Home(homeItems.values.toList())
+    /** dataIds referenciados pelo documento da home (datasources.items[].dataId), na ordem de exibição. */
+    private fun homeDataIds(): List<String> =
+        (homeDocument?.obj("datasources")?.get("items") as? kotlinx.serialization.json.JsonArray).orEmpty()
+            .mapNotNull { (it as? JsonObject)?.str("dataId") }
+            .distinct()
+
+    /** Pede os dados dos cartões: o DataExpired exige a lista de dataIds [Observado: 400 sem ela]. */
+    private suspend fun requestHomeData() {
+        val ids = homeDataIds()
+        if (ids.isEmpty()) return
+        DiagLog.i("show", "pedindo dados de ${ids.size} cartões")
+        sendHomeEvent("DataExpired", buildJsonObject {
+            put("dataIds", kotlinx.serialization.json.JsonArray(ids.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+        })
+    }
+
+    private fun homeScreen(): ShowScreen.Home {
+        val order = homeDataIds()
+        val sorted = if (order.isEmpty()) homeItems.values.toList()
+        else order.mapNotNull { homeItems[it] } + homeItems.filterKeys { it !in order }.values
+        return ShowScreen.Home(sorted)
+    }
 
     /** Guarda os itens de UpdateData: qualquer objeto com id "pull://…" (formato do MMHomeDataStore do Windows). */
     private fun collectHomeItems(e: kotlinx.serialization.json.JsonElement) {
@@ -120,7 +142,7 @@ class ShowModeController(private val scope: CoroutineScope) {
                         homeDocument = d.payload
                         DiagLog.dump("home-document", d.payload.toString())
                         DiagLog.i("show", "documento da home (SPA) recebido")
-                        if (homeItems.isEmpty()) scope.launch { sendHomeEvent("DataExpired") }
+                        if (homeItems.isEmpty()) scope.launch { requestHomeData() }
                         return true
                     }
                     val token = d.payload.str("presentationToken") ?: d.payload.str("token").orEmpty()
@@ -139,7 +161,7 @@ class ShowModeController(private val scope: CoroutineScope) {
                 when (d.name) {
                     "RenderDocument" -> {
                         homeDocument = d.payload
-                        if (homeItems.isEmpty()) scope.launch { sendHomeEvent("DataExpired") }
+                        if (homeItems.isEmpty()) scope.launch { requestHomeData() }
                     }
                     "UpdateData" -> {
                         collectHomeItems(d.payload)

@@ -63,36 +63,50 @@ fun HomeScreen(cards: List<JsonObject>, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Um cartão da home. Formato observado no UpdateData (item pull:// → data → data), por namespace:
+ * WeatherDetail (forecast/alert), Media (reproduzida recentemente) e GenericMedia (receitas).
+ */
 @Composable
 private fun HomeCard(item: JsonObject) {
-    val d = item.obj("data") ?: item
-    val image = d.str("background_image_url") ?: d.str("backgroundImageUrl") ?: d.str("imageUrl")
-    val title = d.str("cardTitle") ?: d.str("card_title") ?: d.str("title")
-    val subtitle = d.str("weatherSummary") ?: d.str("cardSecondaryTitle") ?: d.str("attribution")
+    val outer = item.obj("data") ?: item
+    val d = outer.obj("data") ?: outer
+    val image = d.str("background_image_url") ?: d.str("cardAlbumImage")
+    val header = d.str("cardTitle") ?: d.str("card_title") ?: d.str("headerText")
+    val primary = d.str("cardPrimaryText") ?: d.str("title")
+    val secondary = d.str("weatherSummary") ?: d.str("cardSecondaryText") ?: d.str("attribution")
+    val third = d.str("cardThirdlineText1") ?: d.str("alertSource")
     val big = d.str("currentTemperature")
-    val hint = d.str("alexaHintText") ?: d.str("home_hint_text") ?: d.str("hintText") ?: d.str("hint")
-    val icon = d.str("currentTemperatureIcon")?.takeIf { it.startsWith("https://") }
-    val highLow = listOfNotNull(d.str("highTemperature")?.let { "↑ $it" }, d.str("lowTemperature")?.let { "↓ $it" })
+    val icon = d.str("currentTemperatureIcon")
+    val hint = (d.str("alexaHintText") ?: d.str("hint") ?: d.str("hintText"))?.replace("{WakeWord}", "Alexa")
+    val highLow = listOfNotNull(d.str("highTemperature"), d.str("lowTemperature"))
+    val album = d.str("cardAlbumImage") != null
 
     Box(Modifier.fillMaxSize()) {
-        if (image != null) {
+        if (image != null && !album) {
             RemoteImage(image, Modifier.fillMaxSize(), ContentScale.Crop)
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33000000), Color(0xDD000000)))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x22000000), Color(0xE6000000)))))
         }
-        Column(
+        Row(
             Modifier.align(Alignment.BottomStart).padding(horizontal = 48.dp, vertical = 56.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
         ) {
-            if (big != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    icon?.let { RemoteImage(it, Modifier.size(72.dp)) }
-                    Text(big, fontSize = 72.sp, fontWeight = FontWeight.Light)
-                    if (highLow.isNotEmpty()) Text(highLow.joinToString("   "), style = MaterialTheme.typography.titleLarge)
+            if (album) RemoteImage(image, Modifier.size(220.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                header?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelLarge, color = Color(0xFF8FB8FF)) }
+                if (big != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        icon?.let { Text(it, fontSize = 64.sp) }
+                        Text(big, fontSize = 88.sp, fontWeight = FontWeight.Light)
+                        if (highLow.isNotEmpty()) Column { highLow.forEach { Text(it, style = MaterialTheme.typography.titleLarge) } }
+                    }
                 }
+                primary?.let { Text(it, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                secondary?.let { Text(it, style = MaterialTheme.typography.titleLarge, color = Color(0xFFCBD3DD), maxLines = 2) }
+                third?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Color(0xFF9AA4B1)) }
+                hint?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF8FB8FF), modifier = Modifier.padding(top = 8.dp)) }
             }
-            title?.let { Text(it, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            subtitle?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Color(0xFFCBD3DD), maxLines = 2) }
-            hint?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF8FB8FF)) }
         }
     }
 }
