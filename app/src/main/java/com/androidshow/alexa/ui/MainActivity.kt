@@ -141,6 +141,7 @@ private fun SessionPanel(s: Session, alexa: AlexaService, onLogout: () -> Unit) 
         Button(onClick = { context.startActivity(Intent(context, ShowModeActivity::class.java)) }) { Text("Modo Show") }
         OutlinedButton(onClick = onLogout) { Text("Sair") }
     }
+    WakeWordPanel()
     LazyColumn(Modifier.fillMaxWidth()) {
         items(log.asReversed()) { Text(it, style = MaterialTheme.typography.bodySmall) }
     }

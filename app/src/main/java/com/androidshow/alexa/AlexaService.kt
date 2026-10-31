@@ -15,6 +15,8 @@ import com.androidshow.alexa.net.long
 import com.androidshow.alexa.net.obj
 import com.androidshow.alexa.net.str
 import com.androidshow.alexa.voice.AudioCapture
+import com.androidshow.alexa.voice.Microphone
+import com.androidshow.alexa.voice.wake.WakeWordConfig
 import com.androidshow.alexa.voice.SpeechPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -37,6 +39,7 @@ import java.util.UUID
 class AlexaService(
     context: Context,
     private val http: OkHttpClient,
+    private val microphone: Microphone,
     private val auth: AuthRepository,
     private val avs: AvsClient,
     private val attachments: Attachments,
@@ -119,9 +122,33 @@ class AlexaService(
     }
 
     /** Toque no microfone: abre um Recognize e transmite o áudio até o StopCapture. */
-    fun startListening(initiator: JsonObject? = null): Job? {
+    /**
+     * Palavra de ativação detectada. Com verificação na nuvem, envia os 2 s anteriores (que contêm a
+     * palavra) e marca onde ela está; senão, age como um toque e envia só o que vem depois.
+     */
+    fun onWakeWord(preroll: List<ShortArray>, config: WakeWordConfig) {
+        if (!config.cloudVerified) {
+            startListening()
+            return
+        }
+        val end = preroll.size * Microphone.FRAME_SAMPLES
+        val initiator = buildJsonObject {
+            put("type", "WAKEWORD")
+            put("payload", buildJsonObject {
+                put("wakeWord", config.label.uppercase())
+                put("wakeWordIndices", buildJsonObject {
+                    // O openWakeWord não dá a posição exata: estima ~1 s de palavra antes da detecção.
+                    put("startIndexInSamples", (end - WAKE_WORD_SAMPLES).coerceAtLeast(0))
+                    put("endIndexInSamples", end)
+                })
+            })
+        }
+        startListening(initiator, preroll)
+    }
+
+    fun startListening(initiator: JsonObject? = null, preroll: List<ShortArray> = emptyList()): Job? {
         if (capture != null) return null
-        val mic = AudioCapture(debugCopy = debugAudio)
+        val mic = AudioCapture(microphone, preroll, debugCopy = debugAudio)
         capture = mic
         _dialog.value = Dialog.Listening
         val payload = buildJsonObject {
@@ -239,5 +266,6 @@ class AlexaService(
     private companion object {
         const val TAG = "AlexaService"
         const val LOG_LINES = 50
+        const val WAKE_WORD_SAMPLES = Microphone.SAMPLE_RATE // ~1 s
     }
 }

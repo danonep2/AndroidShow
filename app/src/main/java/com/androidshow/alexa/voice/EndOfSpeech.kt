@@ -1,14 +1,14 @@
 package com.androidshow.alexa.voice
 
 /**
- * Detector de fim de fala por energia, em blocos de 100 ms. Complementa o StopCapture da nuvem:
+ * Detector de fim de fala por energia, em quadros de 80 ms. Complementa o StopCapture da nuvem:
  * fecha o microfone após [silenceChunks] blocos de silêncio depois de haver fala.
  */
 class EndOfSpeech(
     private val calibrationChunks: Int = 3,
     private val minSpeechChunks: Int = 2,
-    private val silenceChunks: Int = 8,
-    private val noSpeechChunks: Int = 50,
+    private val silenceChunks: Int = 10, // 800 ms
+    private val noSpeechChunks: Int = 62, // ~5 s
 ) {
     enum class Result { Continue, Ended, NoSpeech }
 

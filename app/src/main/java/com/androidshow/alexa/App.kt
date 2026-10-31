@@ -11,6 +11,9 @@ import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.show.RemoteImages
 import com.androidshow.alexa.show.ShowModeController
+import com.androidshow.alexa.voice.Microphone
+import com.androidshow.alexa.voice.wake.WakeWordService
+import com.androidshow.alexa.voice.wake.WakeWordSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +27,7 @@ class App : Application() {
         DiagLog.init(this)
         graph = AppGraph(this)
         graph.alexa.start()
+        if (graph.wakeWord.config.value.enabled) runCatching { WakeWordService.start(this) }
     }
 }
 
@@ -33,7 +37,9 @@ class AppGraph(val context: Context) {
     val http = Http.client()
     val auth = AuthRepository(AuthApi(http), SecureStore(context))
     private val attachments = Attachments()
-    val alexa = AlexaService(context, http, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
+    val microphone = Microphone()
+    val wakeWord = WakeWordSettings(context)
+    val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
     val show = ShowModeController(scope).also { show ->
         RemoteImages.http = http
         alexa.displayHandler = show::handle
