@@ -1,0 +1,127 @@
+package com.androidshow.alexa.show.apl
+
+import android.content.Context
+import android.view.LayoutInflater
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import com.amazon.apl.android.APLController
+import com.amazon.apl.android.APLJSONData
+import com.amazon.apl.android.APLLayout
+import com.amazon.apl.android.APLOptions
+import com.amazon.apl.android.Content
+import com.amazon.apl.android.IAPLController
+import com.amazon.apl.android.RootConfig
+import com.amazon.apl.android.dependencies.IPackageLoader
+import com.androidshow.alexa.R
+import com.androidshow.alexa.diag.DiagLog
+import com.androidshow.alexa.net.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Renderizador APL oficial da Amazon (apl-viewhost-android 2024.3, motor apl-core em C++),
+ * compilado localmente para arm64 (ver docs/APL.md).
+ */
+object Apl {
+    @Volatile var ready = false
+        private set
+
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private lateinit var http: OkHttpClient
+    private val packages = ConcurrentHashMap<String, String>()
+
+    /** Carrega a biblioteca nativa em segundo plano (algumas centenas de ms na primeira vez). */
+    fun init(context: Context, client: OkHttpClient) {
+        http = client
+        Thread({
+            runCatching {
+                APLController.initializeAPL(context.applicationContext)
+                ready = APLController.waitForInitializeAPLToComplete(null)
+                DiagLog.i("apl", "renderizador pronto: $ready")
+            }.onFailure { DiagLog.w("apl", "falha ao iniciar o renderizador", it) }
+        }, "apl-init").start()
+    }
+
+    /**
+     * Pacotes importados pelos documentos: a URL `source` quando vem no import (templates da home)
+     * ou a CDN pública de pacotes APL da Amazon (alexa-layouts, alexa-styles...). Cache em memória.
+     */
+    val packageLoader = IPackageLoader { request, success, failure ->
+        val url = request.source?.takeIf { it.isNotBlank() }
+            ?: "https://arl.assets.apl-alexa.com/packages/${request.packageName}/${request.version}/document.json"
+        packages[url]?.let {
+            success.onSuccess(request, APLJSONData.create(it))
+            return@IPackageLoader
+        }
+        io.launch {
+            runCatching {
+                http.newCall(Request.Builder().url(url).build()).await().use { r ->
+                    check(r.isSuccessful) { "HTTP ${r.code}" }
+                    r.body!!.string()
+                }
+            }.onSuccess {
+                packages[url] = it
+                success.onSuccess(request, APLJSONData.create(it))
+            }.onFailure {
+                DiagLog.w("apl", "pacote ${request.packageName} ${request.version} falhou: ${it.message}")
+                failure.onFailure(request, it.message.orEmpty())
+            }
+        }
+    }
+}
+
+/**
+ * Desenha um documento APL. [data] responde aos parâmetros do mainTemplate (nome → JSON);
+ * [onSendEvent] recebe os argumentos dos comandos SendEvent do documento.
+ */
+@Composable
+fun AplDocument(
+    document: String,
+    data: (String) -> String?,
+    modifier: Modifier = Modifier,
+    onSendEvent: (Array<Any?>) -> Unit = {},
+) {
+    // Um controlador por documento: key() recria a view (e o render) só quando o documento muda.
+    key(document) {
+        val holder = remember { arrayOfNulls<IAPLController>(1) }
+        AndroidView(
+            modifier = modifier,
+            factory = { ctx ->
+                val layout = LayoutInflater.from(ctx).inflate(R.layout.apl_layout, null) as APLLayout
+                val options = APLOptions.builder()
+                    .packageLoader(Apl.packageLoader)
+                    .contentDataRetriever { request, success, failure ->
+                        val json = data(request)
+                        if (json != null) success.onSuccess(request, json) else failure.onFailure(request, "sem dados para $request")
+                    }
+                    .sendEventCallbackV2 { args, _, _, _ -> onSendEvent(args) }
+                    .build()
+                holder[0] = runCatching {
+                    APLController.builder()
+                        .aplDocument(document)
+                        .aplOptions(options)
+                        .rootConfig(RootConfig.create(ctx).agent("AndroidShow", "1.0"))
+                        .aplLayout(layout)
+                        .errorCallback { DiagLog.w("apl", "erro ao desenhar documento", it) }
+                        .render()
+                }.onFailure { DiagLog.w("apl", "render falhou", it) }.getOrNull()
+                layout
+            },
+        )
+        DisposableEffect(Unit) {
+            onDispose {
+                holder[0]?.finishDocument()
+                holder[0] = null
+            }
+        }
+    }
+}

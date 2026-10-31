@@ -40,6 +40,7 @@ class AppGraph(val context: Context) {
     val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
     val show = ShowModeController(scope).also { show ->
         RemoteImages.http = http
+        com.androidshow.alexa.show.apl.Apl.init(context, http)
         alexa.displayHandler = show::handle
         alexa.contextContributors += show::contextItems
         show.sendEvent = alexa::sendEvent

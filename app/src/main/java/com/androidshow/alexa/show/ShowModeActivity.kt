@@ -47,6 +47,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.androidshow.alexa.AlexaService
 import com.androidshow.alexa.graph
+import com.androidshow.alexa.show.apl.Apl
+import com.androidshow.alexa.show.apl.AplDocument
 import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
@@ -81,10 +83,20 @@ class ShowModeActivity : ComponentActivity() {
                     ) {
                         Crossfade(screen, label = "screen") { s ->
                             when (s) {
-                                is ShowScreen.Home -> HomeScreen(s.cards)
+                                is ShowScreen.Home ->
+                                    if (Apl.ready && s.document != null && s.payload != null) {
+                                        AplDocument(s.document, { if (it == "payload") s.payload else null }) { show.onAplSendEvent("", it) }
+                                    } else {
+                                        HomeScreen(s.cards)
+                                    }
                                 is ShowScreen.Card -> TemplateCard(s.template)
                                 is ShowScreen.Player -> PlayerCard(s.info)
-                                is ShowScreen.Apl -> AplFallback(s)
+                                is ShowScreen.Apl ->
+                                    if (Apl.ready) {
+                                        AplDocument(s.document.toString(), { name -> s.dataFor(name) }) { show.onAplSendEvent(s.token, it) }
+                                    } else {
+                                        AplFallback(s)
+                                    }
                             }
                         }
                         FloatingActionButton(

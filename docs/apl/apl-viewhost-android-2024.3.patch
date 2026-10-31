@@ -1,0 +1,1262 @@
+diff --git a/apl/src/main/java/com/amazon/apl/android/Text.java b/apl/src/main/java/com/amazon/apl/android/Text.java
+index 804bd3a..33d308d 100644
+--- a/apl/src/main/java/com/amazon/apl/android/Text.java
++++ b/apl/src/main/java/com/amazon/apl/android/Text.java
+@@ -1,195 +1,205 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- * SPDX-License-Identifier: Apache-2.0
+- */
+-
+-package com.amazon.apl.android;
+-
+-
+-import android.text.Layout;
+-
+-import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+-import androidx.annotation.VisibleForTesting;
+-
+-import com.amazon.apl.android.primitive.Rect;
+-import com.amazon.apl.android.scaling.IMetricsTransform;
+-import com.amazon.apl.android.text.LineSpan;
+-import com.amazon.apl.android.utils.APLTextUtil;
+-import com.amazon.apl.enums.PropertyKey;
+-
+-import java.util.LinkedList;
+-import java.util.List;
+-
+-
+-/**
+- * Creates a APL Text Component.
+- * See @{link <a https://developer.amazon.com/docs/alexa-presentation-language/apl-text.html>
+- * APL Text Specification</a>}
+- */
+-public class Text extends Component {
+-
+-    /**
+-     * Used for calculating the which line is highlighted
+-     */
+-    @Nullable
+-    private LineSpan mCurrentLineSpan;
+-
+-    // Color properties are interpreted differently in older APL versions during karaoke
+-    private boolean mClassicKaraokeMode;
+-
+-    /**
+-     * Text constructor.
+-     * {@inheritDoc}
+-     */
+-    Text(long nativeHandle, String componentId, @NonNull RenderingContext renderingContext) {
+-        super(nativeHandle, componentId, renderingContext);
+-        mClassicKaraokeMode = (renderingContext.getDocVersion() < APLVersionCodes.APL_1_1);
+-    }
+-
+-    /**
+-     * Override the standard component property map to use a TextProxy.
+-     * The text proxy has Text specific property getters.
+-     * @return
+-     */
+-    @Override
+-    protected PropertyMap createPropertyMap() {
+-        return new TextProxy<Text>() {
+-            @NonNull
+-            @Override
+-            public Text getMapOwner() {
+-                return Text.this;
+-            }
+-
+-            @NonNull
+-            @Override
+-            public IMetricsTransform getMetricsTransform() {
+-                return getRenderingContext().getMetricsTransform();
+-            }
+-
+-            @Override
+-            public int getColor() {
+-                if (mClassicKaraokeMode && mCurrentLineSpan != null) {
+-                    return getColor(PropertyKey.kPropertyColorNonKaraoke);
+-                }
+-                return super.getColor();
+-            }
+-        };
+-    }
+-
+-    public TextProxy getProxy() {
+-        return (TextProxy) mProperties;
+-    }
+-
+-    @Nullable
+-    public String getLines() {
+-        final Layout textLayout = getTextLayout();
+-
+-        if (textLayout == null) {
+-            return null;
+-        }
+-
+-        return textLayout.getText().toString();
+-    }
+-
+-    @Nullable
+-    public void invalidateNullLine(@NonNull IAPLViewPresenter presenter){
+-        List<PropertyKey> dirtyProperties = new LinkedList<>();
+-        dirtyProperties.add(PropertyKey.kPropertyColorKaraokeTarget);
+-        presenter.onComponentChange(this,dirtyProperties);
+-    }
+-
+-    @Nullable
+-    public int[] getSpans() {
+-        final Layout textLayout = getTextLayout();
+-
+-        if (textLayout == null) {
+-            return null;
+-        }
+-        int lineCount = textLayout.getLineCount();
+-        if (lineCount == 0) {
+-            return null;
+-        }
+-        int[] spans = new int[lineCount];
+-        for (int i = 0; i < lineCount; i++) {
+-            spans[i] = textLayout.getLineEnd(i);
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.amazon.apl.android;
++
++
++import android.text.Layout;
++
++import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
++import androidx.annotation.VisibleForTesting;
++
++import com.amazon.apl.android.primitive.Rect;
++import com.amazon.apl.android.scaling.IMetricsTransform;
++import com.amazon.apl.android.text.LineSpan;
++import com.amazon.apl.android.utils.APLTextUtil;
++import com.amazon.apl.enums.PropertyKey;
++
++import java.util.LinkedList;
++import java.util.List;
++
++
++/**
++ * Creates a APL Text Component.
++ * See @{link <a https://developer.amazon.com/docs/alexa-presentation-language/apl-text.html>
++ * APL Text Specification</a>}
++ */
++public class Text extends Component {
++
++    /**
++     * Used for calculating the which line is highlighted
++     */
++    @Nullable
++    private LineSpan mCurrentLineSpan;
++
++    // Color properties are interpreted differently in older APL versions during karaoke
++    private boolean mClassicKaraokeMode;
++
++    /**
++     * Text constructor.
++     * {@inheritDoc}
++     */
++    Text(long nativeHandle, String componentId, @NonNull RenderingContext renderingContext) {
++        super(nativeHandle, componentId, renderingContext);
++        mClassicKaraokeMode = (renderingContext.getDocVersion() < APLVersionCodes.APL_1_1);
++    }
++
++    /**
++     * Override the standard component property map to use a TextProxy.
++     * The text proxy has Text specific property getters.
++     * @return
++     */
++    @Override
++    protected PropertyMap createPropertyMap() {
++        return new TextProxy<Text>() {
++            @NonNull
++            @Override
++            public Text getMapOwner() {
++                return Text.this;
++            }
++
++            @NonNull
++            @Override
++            public IMetricsTransform getMetricsTransform() {
++                return getRenderingContext().getMetricsTransform();
++            }
++
++            @Override
++            public int getColor() {
++                if (mClassicKaraokeMode && mCurrentLineSpan != null) {
++                    return getColor(PropertyKey.kPropertyColorNonKaraoke);
++                }
++                return super.getColor();
++            }
++        };
++    }
++
++    public TextProxy getProxy() {
++        return (TextProxy) mProperties;
++    }
++
++    @Nullable
++    public String getLines() {
++        final Layout textLayout = getTextLayout();
++
++        if (textLayout == null) {
++            return null;
++        }
++
++        return textLayout.getText().toString();
++    }
++
++    @Nullable
++    public void invalidateNullLine(@NonNull IAPLViewPresenter presenter){
++        List<PropertyKey> dirtyProperties = new LinkedList<>();
++        dirtyProperties.add(PropertyKey.kPropertyColorKaraokeTarget);
++        presenter.onComponentChange(this,dirtyProperties);
++    }
++
++    @Nullable
++    public int[] getSpans() {
++        final Layout textLayout = getTextLayout();
++
++        if (textLayout == null) {
++            return null;
++        }
++        int lineCount = textLayout.getLineCount();
++        if (lineCount == 0) {
++            return null;
++        }
++        int[] spans = new int[lineCount];
++        for (int i = 0; i < lineCount; i++) {
++            spans[i] = textLayout.getLineEnd(i);
++        }
++        return spans;
++    }
++
++    /**
++     * @param presenter
++     * @param line
++     */
++    public boolean setCurrentKaraokeLine(@NonNull IAPLViewPresenter presenter, @Nullable Integer line) {
++        final Layout textLayout = getTextLayout();
++
++        final LineSpan oldLineSpan = mCurrentLineSpan;
++        mCurrentLineSpan = null;
++
++        if (textLayout == null || line == null) {
++            return false;
++        }
++        final int start = textLayout.getLineStart(line);
++        final int end = textLayout.getLineEnd(line);
++
++        mCurrentLineSpan = new LineSpan(start, end, getProxy().getColorKaraokeTarget());
++        // Don't update unless we need to highlight a new line
++        if (oldLineSpan != null && oldLineSpan.equals(mCurrentLineSpan)) {
++            return false;
++        }
++        // Now update
++        List<PropertyKey> dirtyProperties = new LinkedList<>();
++        dirtyProperties.add(PropertyKey.kPropertyColorKaraokeTarget);
++        presenter.onComponentChange(this, dirtyProperties);
++        return true;
++    }
++
++    /**
++     * Gets the line number by range
++     */
++    public int getLineNumberByRange(int rangeStart, int rangeEnd) {
++        final Layout textLayout = getTextLayout();
++
++        if (textLayout == null) {
++            return -1;
++        }
++
++        int[] characterRange = APLTextUtil.calculateCharacterOffsetByRange(getText(), rangeStart, rangeEnd);
++
++        return textLayout.getLineForOffset((characterRange[0] + characterRange[1]) / 2);
++    }
++
++    private Layout getTextLayout() {
++        final Rect bounds = getProxy().getInnerBounds();
++        // bounds dimensions are in pixel values, convert to dp before layout creation
++        IMetricsTransform metricsTransform = getRenderingContext().getMetricsTransform();
++        return getRenderingContext().getTextLayoutFactory().getOrCreateTextLayout(
++                getRenderingContext().getDocVersion(),
++                getProxy(),
++                metricsTransform.toCore(bounds.getWidth()),
++                TextMeasure.MeasureMode.Exactly,
++                metricsTransform.toCore(bounds.getHeight()),
++                TextMeasure.MeasureMode.Exactly,
++                getKaraokeLineSpan(),
++                getRenderingContext().getMetricsTransform()
++        ).getLayout();
++    }
++
++    @Override
++    public boolean shouldDrawBoxShadow() {
++        return false;
++    }
++
++    public LineSpan getKaraokeLineSpan() {
++        return mCurrentLineSpan;
++    }
++
++    /**
++     * Raw text for test utilities.
++     */
++    @VisibleForTesting
++    public String getText() {
++        return getProxy().getStyledText().getUnprocessedText();
++    }
++
++    /** AndroidShow: ausente no repositório público; limites da linha [line] no layout do texto. */
++    public android.graphics.Rect getLineBounds(int line) {
++        final android.graphics.Rect rect = new android.graphics.Rect();
++        final Layout layout = getTextLayout();
++        if (layout != null && line >= 0 && line < layout.getLineCount()) {
++            layout.getLineBounds(line, rect);
+         }
+-        return spans;
+-    }
+-
+-    /**
+-     * @param presenter
+-     * @param line
+-     */
+-    public boolean setCurrentKaraokeLine(@NonNull IAPLViewPresenter presenter, @Nullable Integer line) {
+-        final Layout textLayout = getTextLayout();
+-
+-        final LineSpan oldLineSpan = mCurrentLineSpan;
+-        mCurrentLineSpan = null;
+-
+-        if (textLayout == null || line == null) {
+-            return false;
+-        }
+-        final int start = textLayout.getLineStart(line);
+-        final int end = textLayout.getLineEnd(line);
+-
+-        mCurrentLineSpan = new LineSpan(start, end, getProxy().getColorKaraokeTarget());
+-        // Don't update unless we need to highlight a new line
+-        if (oldLineSpan != null && oldLineSpan.equals(mCurrentLineSpan)) {
+-            return false;
+-        }
+-        // Now update
+-        List<PropertyKey> dirtyProperties = new LinkedList<>();
+-        dirtyProperties.add(PropertyKey.kPropertyColorKaraokeTarget);
+-        presenter.onComponentChange(this, dirtyProperties);
+-        return true;
+-    }
+-
+-    /**
+-     * Gets the line number by range
+-     */
+-    public int getLineNumberByRange(int rangeStart, int rangeEnd) {
+-        final Layout textLayout = getTextLayout();
+-
+-        if (textLayout == null) {
+-            return -1;
+-        }
+-
+-        int[] characterRange = APLTextUtil.calculateCharacterOffsetByRange(getText(), rangeStart, rangeEnd);
+-
+-        return textLayout.getLineForOffset((characterRange[0] + characterRange[1]) / 2);
+-    }
+-
+-    private Layout getTextLayout() {
+-        final Rect bounds = getProxy().getInnerBounds();
+-        // bounds dimensions are in pixel values, convert to dp before layout creation
+-        IMetricsTransform metricsTransform = getRenderingContext().getMetricsTransform();
+-        return getRenderingContext().getTextLayoutFactory().getOrCreateTextLayout(
+-                getRenderingContext().getDocVersion(),
+-                getProxy(),
+-                metricsTransform.toCore(bounds.getWidth()),
+-                TextMeasure.MeasureMode.Exactly,
+-                metricsTransform.toCore(bounds.getHeight()),
+-                TextMeasure.MeasureMode.Exactly,
+-                getKaraokeLineSpan(),
+-                getRenderingContext().getMetricsTransform()
+-        ).getLayout();
+-    }
+-
+-    @Override
+-    public boolean shouldDrawBoxShadow() {
+-        return false;
+-    }
+-
+-    public LineSpan getKaraokeLineSpan() {
+-        return mCurrentLineSpan;
+-    }
+-
+-    /**
+-     * Raw text for test utilities.
+-     */
+-    @VisibleForTesting
+-    public String getText() {
+-        return getProxy().getStyledText().getUnprocessedText();
++        return rect;
+     }
+-}
++}
+diff --git a/apl/src/main/java/com/amazon/apl/android/Video.java b/apl/src/main/java/com/amazon/apl/android/Video.java
+index 7fe3c19..b722f32 100644
+--- a/apl/src/main/java/com/amazon/apl/android/Video.java
++++ b/apl/src/main/java/com/amazon/apl/android/Video.java
+@@ -32,6 +32,11 @@ public class Video extends Component {
+      */
+     private boolean mFromEvent;
+ 
++    // AndroidShow: setter ausente no repositório público.
++    public void setFromEvent(boolean fromEvent) { mFromEvent = fromEvent; }
++
++    public boolean isFromEvent() { return mFromEvent; }
++
+     public void setMediaPlayer(IMediaPlayer mMediaPlayer) {
+         this.mMediaPlayer = mMediaPlayer;
+     }
+diff --git a/apl/src/main/java/com/amazon/apl/android/component/VideoViewAdapter.java b/apl/src/main/java/com/amazon/apl/android/component/VideoViewAdapter.java
+index fac8d0f..771623f 100644
+--- a/apl/src/main/java/com/amazon/apl/android/component/VideoViewAdapter.java
++++ b/apl/src/main/java/com/amazon/apl/android/component/VideoViewAdapter.java
+@@ -1,176 +1,180 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- * SPDX-License-Identifier: Apache-2.0
+- */
+-
+-package com.amazon.apl.android.component;
+-
+-import android.content.Context;
+-import android.util.Log;
+-import android.view.View;
+-import android.view.ViewGroup;
+-
+-import androidx.annotation.NonNull;
+-import androidx.annotation.Nullable;
+-
+-import com.amazon.apl.android.APLLayoutParams;
+-import com.amazon.apl.android.IAPLViewPresenter;
+-import com.amazon.apl.android.Video;
+-import com.amazon.apl.android.dependencies.IMediaPlayer;
+-import com.amazon.apl.android.media.MediaPlayer;
+-import com.amazon.apl.android.primitive.MediaSources;
+-import com.amazon.apl.android.views.APLAbsoluteLayout;
+-import com.amazon.apl.enums.AudioTrack;
+-import com.amazon.apl.enums.PropertyKey;
+-import com.amazon.apl.enums.VideoScale;
+-
+-public class VideoViewAdapter extends ComponentViewAdapter<Video, View> {
+-    private static final String TAG = "VideoViewAdapter";
+-    private static VideoViewAdapter INSTANCE;
+-
+-    private VideoViewAdapter() {
+-        super();
+-        // The below methods are for legacy purposes only, should not be used when using Core mediaPlayer interface
+-        putPropertyFunction(PropertyKey.kPropertySource, this::applySource);
+-        putPropertyFunction(PropertyKey.kPropertyMuted, this::applyMuted);
+-    }
+-
+-    public static VideoViewAdapter getInstance() {
+-        if (INSTANCE == null) {
+-            INSTANCE = new VideoViewAdapter();
+-        }
+-        return INSTANCE;
+-    }
+-
+-    /**
+-     * Updates the source.
+-     *
+-     * Note we release and rebuild the player on source changes. This could be optimized.
+-     *
+-     * TODO the current default MediaPlayer fails on source changes
+-     *
+-     * @param view the view associated with the player.
+-     */
+-    @Deprecated
+-    private void applySource(Video component, View view) {
+-        // Before MediaPlayerV2, source and mute property updates were handled through dynamic property updates.
+-        // Now they are handled by the MediaPlayer interface.
+-        assert component.getRenderingContext().isMediaPlayerV2Enabled();
+-    }
+-
+-    /**
+-     * Apply the view to the media player
+-     * @param component
+-     * @param view
+-     */
+-    private void applyView(Video component, View view) {
+-        final MediaPlayer nativePlayer = component.getNativePlayer();
+-        if (nativePlayer == null) {
+-            Log.e(TAG, "Native player not initialized, won't render video");
+-            return;
+-        }
+-        IMediaPlayer mediaPlayer = nativePlayer.getMediaPlayer();
+-        if (mediaPlayer == null) {
+-            // Order is not guaranteed and may change in future
+-            mediaPlayer = component.getMediaPlayerProvider().getNewPlayer(view.getContext(), view);
+-            applyVideoScale(component, mediaPlayer);
+-            applyCurrentTrackIndex(component, mediaPlayer);
+-            applyCurrentTrackTime(component, mediaPlayer);
+-            nativePlayer.setMediaPlayer(mediaPlayer);
+-        }
+-        // For supporting back navigation.
+-        else {
+-            mediaPlayer.release();
+-            // The track index and track time are not available from component in V2
+-            // Retrieve the current track index before the player was released.
+-            final int preReleaseTrackIndex = nativePlayer.getCurrentTrackIndex();
+-            // Retrieve the current track time before the player was released.
+-            final int preReleaseTrackPosition = nativePlayer.getCurrentSeekPosition();
+-            // Add the mediaPlayer to the list of playing set
+-            mediaPlayer = component.getMediaPlayerProvider().getNewPlayer(view.getContext(), view);
+-            // Add the native player to listen to media state updates from the revived media player
+-            nativePlayer.setMediaPlayer(mediaPlayer);
+-            // Assign all the properties from cached document state
+-            mediaPlayer.setMediaSources(component.getMediaSources());
+-            applyMuted(component, mediaPlayer);
+-            applyAudioTrack(component, mediaPlayer);
+-            applyVideoScale(component, mediaPlayer);
+-            // Set the track to the pre-release track index
+-            mediaPlayer.setTrack(preReleaseTrackIndex);
+-            // Seek to the pre-release track position
+-            mediaPlayer.seek(preReleaseTrackPosition);
+-            // Play if needed
+-            applyAutoPlay(component, mediaPlayer);
+-        }
+-    }
+-
+-    private void applyMuted(Video component, IMediaPlayer mediaPlayer) {
+-        if (component.shouldMute()) {
+-            mediaPlayer.mute();
+-        } else {
+-            mediaPlayer.unmute();
+-        }
+-    }
+-
+-    @Deprecated
+-    private void applyMuted(Video component, View view) {
+-        // Before MediaPlayerV2, source and mute property updates were handled through dynamic property updates.
+-        // Now they are handled by the MediaPlayer interface.
+-        assert (component.getRenderingContext().isMediaPlayerV2Enabled());
+-    }
+-
+-    private void applyAudioTrack(Video component, IMediaPlayer mediaPlayer) {
+-        final AudioTrack audioTrack = component.getAudioTrack();
+-        if (mediaPlayer != null && audioTrack != null) {
+-            mediaPlayer.setAudioTrack(audioTrack);
+-        }
+-    }
+-
+-    private void applyVideoScale(Video component, IMediaPlayer mediaPlayer) {
+-        final VideoScale scale = component.getVideoScale();
+-        if (mediaPlayer != null && scale != null) {
+-            mediaPlayer.setVideoScale(scale);
+-        }
+-    }
+-
+-    private void applyCurrentTrackIndex(Video component, IMediaPlayer mediaPlayer) {
+-        final int currentTrackIndex = component.getTrackIndex();
+-        if (mediaPlayer != null && currentTrackIndex != 0) {
+-            mediaPlayer.setTrack(currentTrackIndex);
+-        }
+-    }
+-
+-    private void applyCurrentTrackTime(Video component, IMediaPlayer mediaPlayer) {
+-        final int currentTrackTime = component.getCurrentTrackTime();
+-        if (mediaPlayer != null && currentTrackTime != 0) {
+-            mediaPlayer.seek(currentTrackTime);
+-        }
+-    }
+-
+-    private void applyAutoPlay(Video component, IMediaPlayer mediaPlayer) {
+-        if (mediaPlayer != null && component.shouldAutoPlay()) {
+-            mediaPlayer.play();
+-        }
+-    }
+-
+-    /**
+-     * Apply properties to the APL component.
+-     */
+-    @Override
+-    public void applyAllProperties(Video component, @NonNull View view) {
+-
+-        super.applyAllProperties(component, view);
+-        assert component.getRenderingContext().isMediaPlayerV2Enabled();
+-        applyView(component, view);
+-    }
+-
+-    @Override
+-    public View createView(Context context, IAPLViewPresenter presenter) {
+-        return presenter.getMediaPlayerProvider().createView(context);
+-    }
+-
+-    @Override
+-    void applyPadding(Video component, View view) {
+-        setPaddingFromBounds(component, view, false);
++/*
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package com.amazon.apl.android.component;
++
++import android.content.Context;
++import android.util.Log;
++import android.view.View;
++import android.view.ViewGroup;
++
++import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
++
++import com.amazon.apl.android.APLLayoutParams;
++import com.amazon.apl.android.IAPLViewPresenter;
++import com.amazon.apl.android.Video;
++import com.amazon.apl.android.dependencies.IMediaPlayer;
++import com.amazon.apl.android.media.MediaPlayer;
++import com.amazon.apl.android.primitive.MediaSources;
++import com.amazon.apl.android.views.APLAbsoluteLayout;
++import com.amazon.apl.enums.AudioTrack;
++import com.amazon.apl.enums.PropertyKey;
++import com.amazon.apl.enums.VideoScale;
++
++public class VideoViewAdapter extends ComponentViewAdapter<Video, View> {
++    private static final String TAG = "VideoViewAdapter";
++    private static VideoViewAdapter INSTANCE;
++
++    private VideoViewAdapter() {
++        super();
++        // The below methods are for legacy purposes only, should not be used when using Core mediaPlayer interface
++        putPropertyFunction(PropertyKey.kPropertySource, this::applySource);
++        putPropertyFunction(PropertyKey.kPropertyMuted, this::applyMuted);
++    }
++
++    public static VideoViewAdapter getInstance() {
++        if (INSTANCE == null) {
++            INSTANCE = new VideoViewAdapter();
++        }
++        return INSTANCE;
++    }
++
++    /**
++     * Updates the source.
++     *
++     * Note we release and rebuild the player on source changes. This could be optimized.
++     *
++     * TODO the current default MediaPlayer fails on source changes
++     *
++     * @param view the view associated with the player.
++     */
++    @Deprecated
++    private void applySource(Video component, View view) {
++        // Before MediaPlayerV2, source and mute property updates were handled through dynamic property updates.
++        // Now they are handled by the MediaPlayer interface.
++        assert component.getRenderingContext().isMediaPlayerV2Enabled();
++    }
++
++    /**
++     * Apply the view to the media player
++     * @param component
++     * @param view
++     */
++    private void applyView(Video component, View view) {
++        final MediaPlayer nativePlayer = component.getNativePlayer();
++        if (nativePlayer == null) {
++            Log.e(TAG, "Native player not initialized, won't render video");
++            return;
++        }
++        IMediaPlayer mediaPlayer = nativePlayer.getMediaPlayer();
++        if (mediaPlayer == null) {
++            // Order is not guaranteed and may change in future
++            mediaPlayer = component.getMediaPlayerProvider().getNewPlayer(view.getContext(), view);
++            applyVideoScale(component, mediaPlayer);
++            applyCurrentTrackIndex(component, mediaPlayer);
++            applyCurrentTrackTime(component, mediaPlayer);
++            nativePlayer.setMediaPlayer(mediaPlayer);
++        }
++        // For supporting back navigation.
++        else {
++            mediaPlayer.release();
++            // The track index and track time are not available from component in V2
++            // Retrieve the current track index before the player was released.
++            final int preReleaseTrackIndex = nativePlayer.getCurrentTrackIndex();
++            // Retrieve the current track time before the player was released.
++            final int preReleaseTrackPosition = nativePlayer.getCurrentSeekPosition();
++            // Add the mediaPlayer to the list of playing set
++            mediaPlayer = component.getMediaPlayerProvider().getNewPlayer(view.getContext(), view);
++            // Add the native player to listen to media state updates from the revived media player
++            nativePlayer.setMediaPlayer(mediaPlayer);
++            // Assign all the properties from cached document state
++            mediaPlayer.setMediaSources(component.getMediaSources());
++            applyMuted(component, mediaPlayer);
++            applyAudioTrack(component, mediaPlayer);
++            applyVideoScale(component, mediaPlayer);
++            // Set the track to the pre-release track index
++            mediaPlayer.setTrack(preReleaseTrackIndex);
++            // Seek to the pre-release track position
++            mediaPlayer.seek(preReleaseTrackPosition);
++            // Play if needed
++            applyAutoPlay(component, mediaPlayer);
++        }
++    }
++
++    private void applyMuted(Video component, IMediaPlayer mediaPlayer) {
++        if (component.shouldMute()) {
++            mediaPlayer.mute();
++        } else {
++            mediaPlayer.unmute();
++        }
++    }
++
++    @Deprecated
++    private void applyMuted(Video component, View view) {
++        // Before MediaPlayerV2, source and mute property updates were handled through dynamic property updates.
++        // Now they are handled by the MediaPlayer interface.
++        assert (component.getRenderingContext().isMediaPlayerV2Enabled());
++    }
++
++    private void applyAudioTrack(Video component, IMediaPlayer mediaPlayer) {
++        final AudioTrack audioTrack = component.getAudioTrack();
++        if (mediaPlayer != null && audioTrack != null) {
++            mediaPlayer.setAudioTrack(audioTrack);
++        }
++    }
++
++    private void applyVideoScale(Video component, IMediaPlayer mediaPlayer) {
++        final VideoScale scale = component.getVideoScale();
++        if (mediaPlayer != null && scale != null) {
++            mediaPlayer.setVideoScale(scale);
++        }
++    }
++
++    private void applyCurrentTrackIndex(Video component, IMediaPlayer mediaPlayer) {
++        final int currentTrackIndex = component.getTrackIndex();
++        if (mediaPlayer != null && currentTrackIndex != 0) {
++            mediaPlayer.setTrack(currentTrackIndex);
++        }
++    }
++
++    private void applyCurrentTrackTime(Video component, IMediaPlayer mediaPlayer) {
++        final int currentTrackTime = component.getCurrentTrackTime();
++        if (mediaPlayer != null && currentTrackTime != 0) {
++            mediaPlayer.seek(currentTrackTime);
++        }
++    }
++
++    private void applyAutoPlay(Video component, IMediaPlayer mediaPlayer) {
++        if (mediaPlayer != null && component.shouldAutoPlay()) {
++            mediaPlayer.play();
++        }
++    }
++
++    /**
++     * Apply properties to the APL component.
++     */
++    @Override
++    public void applyAllProperties(Video component, @NonNull View view) {
++
++        super.applyAllProperties(component, view);
++        assert component.getRenderingContext().isMediaPlayerV2Enabled();
++        applyView(component, view);
++    }
++
++    @Override
++    public View createView(Context context, IAPLViewPresenter presenter) {
++        return presenter.getMediaPlayerProvider().createView(context);
++    }
++
++    @Override
++    void applyPadding(Video component, View view) {
++        setPaddingFromBounds(component, view, false);
++    }
++
++    /** AndroidShow: ausente no repositório público; o presenter já infla o vídeo sob demanda. */
++    public void inflateViewWithNonZeroDimensions(com.amazon.apl.android.Video video, com.amazon.apl.android.IAPLViewPresenter presenter) {
+     }
+-}
++}
+diff --git a/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java b/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
+index 1014a50..4f082bc 100644
+--- a/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
++++ b/apl/src/main/java/com/amazon/apl/android/font/EmbeddedFontResolver.java
+@@ -10,109 +10,35 @@ import android.content.res.Resources;
+ import android.graphics.Typeface;
+ import android.util.Log;
+ 
+-import androidx.annotation.FontRes;
+ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+-import androidx.core.content.res.ResourcesCompat;
+-
+-import com.amazon.apl.android.R;
+-
+-import java.util.Arrays;
+-import java.util.Collections;
+-import java.util.List;
+ 
+ /**
+- * Fallback Font resolver - that uses embedded fonts.
++ * Fallback Font resolver.
++ *
++ * AndroidShow: a Amazon Ember (proprietária) foi removida do repositório público; usa a
++ * sans-serif do sistema no peso e estilo pedidos.
+  */
+ public class EmbeddedFontResolver implements IFontResolver {
+ 
+-    private final Context mAppContext;
+     private static final String TAG = "EmbeddedFontResolver";
+ 
+-    private static final List<ResFontKey> sArabicFontWeights = Collections.unmodifiableList(Arrays.asList(
+-            new ResFontKey(100, R.font.amazon_ember_regular_v2),
+-            new ResFontKey(300, R.font.amazon_ember_regular_v2),
+-            new ResFontKey(400, R.font.amazon_ember_regular_v2),
+-            new ResFontKey(500, R.font.amazon_ember_medium_v2),
+-            new ResFontKey(700, R.font.amazon_ember_bold_v2),
+-            new ResFontKey(900, R.font.amazon_ember_bold_v2)));
+-
+-    private static final List<ResFontKey> sFontWeights = Collections.unmodifiableList(Arrays.asList(
+-            new ResFontKey(100, R.font.amazon_ember_display_light),
+-            new ResFontKey(300, R.font.amazon_ember_display_light),
+-            new ResFontKey(400, R.font.amazon_ember_display_regular),
+-            new ResFontKey(500, R.font.amazon_ember_display_medium),
+-            new ResFontKey(700, R.font.amazon_ember_display_bold),
+-            new ResFontKey(900, R.font.amazon_ember_display_heavy)));
+-
+-    private static class ResFontKey {
+-        @FontRes final int fontRes;
+-        final int weight;
+-
+-        ResFontKey(final int weight, @FontRes final int fontRes) {
+-            this.weight = weight;
+-            this.fontRes = fontRes;
+-        }
+-    }
+-
+     public EmbeddedFontResolver(@NonNull final Context context) {
+-        mAppContext = context.getApplicationContext();
+     }
+ 
+-
+     @NonNull
+     @Override
+     public Typeface findFont(@NonNull FontKey key) {
+-        Typeface result = null;
+-        try {
+-            result = findAPLFont(key);
+-        } catch (final Resources.NotFoundException ex) {
+-            Log.e(TAG, "Exception finding embedded app font", ex);
++        final Typeface base = Typeface.create("sans-serif", Typeface.NORMAL);
++        if (android.os.Build.VERSION.SDK_INT >= 28) {
++            return Typeface.create(base, key.getWeight(), key.isItalic());
+         }
+-        if (result == null) {
+-            Log.w(TAG, "Did not find font with key: " + key);
+-        }
+-        return result;
++        final int style = (key.getWeight() >= 600 ? Typeface.BOLD : Typeface.NORMAL)
++                | (key.isItalic() ? Typeface.ITALIC : 0);
++        return Typeface.create(base, style);
+     }
+ 
+     @Override
+     public void initialize() {
+-        // No-op since this implementation is mostly a fall-back. Fonts should be loaded from
+-        //  system/fonts not from our resources.
+-    }
+-
+-    @Nullable
+-    private Typeface findAPLFont(@NonNull final FontKey key) {
+-        // Get the closest APLFont font
+-        int minDiff = Integer.MAX_VALUE;
+-        ResFontKey bestKey = null;
+-        List<ResFontKey> fontWeights = sFontWeights;
+-
+-        boolean isArabicFontKey = FontUtil.isArabicFontKey(key);
+-        if (isArabicFontKey) {
+-            fontWeights = sArabicFontWeights;
+-        }
+-
+-        for (final ResFontKey currentKey : fontWeights) {
+-            final int currentWeight = currentKey.weight;
+-
+-            if (minDiff > Math.abs(currentWeight - key.getWeight())) {
+-                minDiff = Math.abs(currentWeight - key.getWeight());
+-                bestKey = currentKey;
+-            }
+-        }
+-
+-        if (bestKey != null) {
+-            final Typeface result = ResourcesCompat.getFont(mAppContext, bestKey.fontRes);
+-            if (key.isItalic() && !isArabicFontKey) {
+-                return Typeface.create(result, Typeface.ITALIC);
+-            }
+-            return result;
+-        }
+-        return null;
+     }
+ }
+-
+-
+-
+-
+diff --git a/apl/src/main/java/com/amazon/apl/devtools/controllers/DTConnection.java b/apl/src/main/java/com/amazon/apl/devtools/controllers/DTConnection.java
+deleted file mode 100644
+index e1a116b..0000000
+--- a/apl/src/main/java/com/amazon/apl/devtools/controllers/DTConnection.java
++++ /dev/null
+@@ -1,270 +0,0 @@
+-/*
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved
+- * SPDX-License-Identifier: Apache-2.0
+- */
+-
+-package com.amazon.apl.devtools.controllers;
+-
+-import android.util.Log;
+-
+-import com.amazon.apl.devtools.enums.DTError;
+-import com.amazon.apl.devtools.models.Session;
+-import com.amazon.apl.devtools.models.common.Event;
+-import com.amazon.apl.devtools.models.common.Request;
+-import com.amazon.apl.devtools.models.common.Response;
+-import com.amazon.apl.devtools.models.error.DTException;
+-import com.amazon.apl.devtools.models.error.ErrorResponse;
+-import com.amazon.apl.devtools.util.CommandRequestFactory;
+-
+-import com.amazon.apl.devtools.util.RequestStatus;
+-import org.java_websocket.WebSocket;
+-import org.java_websocket.drafts.Draft;
+-import org.java_websocket.enums.Opcode;
+-import org.java_websocket.enums.ReadyState;
+-import org.java_websocket.framing.Framedata;
+-import org.java_websocket.protocols.IProtocol;
+-import org.json.JSONException;
+-import org.json.JSONObject;
+-
+-import java.net.InetSocketAddress;
+-import java.nio.ByteBuffer;
+-import java.nio.channels.NotYetConnectedException;
+-import java.util.Collection;
+-import java.util.HashMap;
+-import java.util.Map;
+-
+-import javax.net.ssl.SSLSession;
+-
+-/**
+- * DTConnection is a wrapper for a WebSocket.
+- * DTConnection stores the Sessions created by a single web socket client.
+- * A DTConnection can have many Sessions.
+- */
+-public final class DTConnection implements WebSocket {
+-    private static final String TAG = DTConnection.class.getSimpleName();
+-    private final CommandRequestFactory mCommandRequestFactory;
+-    private final WebSocket mWebSocket;
+-    private final Map<String, Session> mRegisteredSessionsMap = new HashMap<>();
+-
+-    public DTConnection(CommandRequestFactory commandRequestFactory,
+-                        WebSocket webSocket) {
+-        Log.i(TAG, "Wrapping web socket in a connection");
+-        mCommandRequestFactory = commandRequestFactory;
+-        mWebSocket = webSocket;
+-    }
+-
+-    public void registerSession(Session session) {
+-        mRegisteredSessionsMap.put(session.getSessionId(), session);
+-        Log.i(TAG, "registerSession: Connection has " + mRegisteredSessionsMap.size() +
+-                " sessions");
+-    }
+-
+-    public void unregisterSession(String sessionId) {
+-        mRegisteredSessionsMap.remove(sessionId);
+-        Log.i(TAG, "unregisterSession: Connection has " + mRegisteredSessionsMap.size() +
+-                " sessions");
+-    }
+-
+-    public boolean hasSession(String sessionId) {
+-        return mRegisteredSessionsMap.containsKey(sessionId);
+-    }
+-
+-    public Session getSession(String sessionId) {
+-        return mRegisteredSessionsMap.get(sessionId);
+-    }
+-
+-    private void destroyRegisteredSessions() {
+-        Collection<Session> sessions = mRegisteredSessionsMap.values();
+-        for (Session session : sessions) {
+-            session.destroy();
+-        }
+-    }
+-
+-    public void handleMessage(String message) {
+-        Log.i(TAG, "Message received by connection");
+-        try {
+-            JSONObject obj = new JSONObject(message);
+-            Request<? extends Response> commandRequest =
+-                    mCommandRequestFactory.createCommandRequest(obj, this);
+-            // Passing a callback to send a response after executing
+-            commandRequest.execute(this::sendResponse);
+-        } catch (DTException e) {
+-            Log.e(TAG, "Error creating command request", e);
+-            Response errorResponse = new ErrorResponse(e);
+-            sendResponse(errorResponse);
+-        } catch (JSONException e) {
+-            Log.e(TAG, "Error deserializing command request", e);
+-            // Sending error response with id of 0 because the invalid request might not have an id
+-            Response errorResponse = new ErrorResponse(0, DTError.INVALID_COMMAND.getErrorCode(),
+-                    DTError.INVALID_COMMAND.getErrorMsg());
+-            sendResponse(errorResponse);
+-        }
+-    }
+-
+-    private <TResponse extends Response> void sendResponse(TResponse response, RequestStatus requestStatus) {
+-        if (requestStatus.getExecutionStatus() == RequestStatus.ExecutionStatus.FAILED) {
+-            final DTError error = requestStatus.getError();
+-            Response errorResponse = new ErrorResponse(requestStatus.getId(), error.getErrorCode(), error.getErrorMsg());
+-            sendResponse(errorResponse);
+-            return;
+-        }
+-
+-        sendResponse(response);
+-    }
+-
+-    private <TResponse extends Response> void sendResponse(TResponse response) {
+-        try {
+-            String responseStr = response.toJSONString();
+-            Log.i(TAG, "Sending web socket message: " + responseStr);
+-            send(responseStr);
+-        } catch (JSONException e) {
+-            Log.e(TAG, "Error serializing response", e);
+-        }
+-    }
+-
+-    public <TEvent extends Event> void sendEvent(TEvent event) {
+-        try {
+-            String eventStr = event.toJSONString();
+-            Log.i(TAG, "Sending web socket message: " + eventStr);
+-            send(eventStr);
+-        } catch (JSONException e) {
+-            Log.e(TAG, "Error serializing event", e);
+-        }
+-    }
+-
+-    @Override
+-    public void close(int code, String message) {
+-        Log.i(TAG, "Closing connection");
+-        mWebSocket.close(code, message);
+-        destroyRegisteredSessions();
+-    }
+-
+-    @Override
+-    public void close(int code) {
+-        mWebSocket.close(code);
+-    }
+-
+-    @Override
+-    public void close() {
+-        mWebSocket.close();
+-    }
+-
+-    @Override
+-    public void closeConnection(int code, String message) {
+-        mWebSocket.closeConnection(code, message);
+-    }
+-
+-    @Override
+-    public void send(String text) throws NotYetConnectedException {
+-        if (isOpen()) {
+-            mWebSocket.send(text);
+-        } else {
+-            Log.w(TAG, "Connection closed, ignoring request to send message.");
+-        }
+-    }
+-
+-    @Override
+-    public void send(ByteBuffer bytes) throws IllegalArgumentException, NotYetConnectedException {
+-        mWebSocket.send(bytes);
+-    }
+-
+-    @Override
+-    public void send(byte[] bytes) throws IllegalArgumentException, NotYetConnectedException {
+-        mWebSocket.send(bytes);
+-    }
+-
+-    @Override
+-    public void sendFrame(Framedata framedata) {
+-        mWebSocket.sendFrame(framedata);
+-    }
+-
+-    @Override
+-    public void sendFrame(Collection<Framedata> frames) {
+-        mWebSocket.sendFrame(frames);
+-    }
+-
+-    @Override
+-    public void sendPing() throws NotYetConnectedException {
+-        mWebSocket.sendPing();
+-    }
+-
+-    @Override
+-    public void sendFragmentedFrame(Opcode op, ByteBuffer buffer, boolean fin) {
+-        mWebSocket.sendFragmentedFrame(op, buffer, fin);
+-    }
+-
+-    @Override
+-    public boolean hasBufferedData() {
+-        return mWebSocket.hasBufferedData();
+-    }
+-
+-    @Override
+-    public InetSocketAddress getRemoteSocketAddress() {
+-        return mWebSocket.getRemoteSocketAddress();
+-    }
+-
+-    @Override
+-    public InetSocketAddress getLocalSocketAddress() {
+-        return mWebSocket.getLocalSocketAddress();
+-    }
+-
+-    @Override
+-    public boolean isOpen() {
+-        return mWebSocket.isOpen();
+-    }
+-
+-    @Override
+-    public boolean isClosing() {
+-        return mWebSocket.isClosing();
+-    }
+-
+-    @Override
+-    public boolean isFlushAndClose() {
+-        return mWebSocket.isFlushAndClose();
+-    }
+-
+-    @Override
+-    public boolean isClosed() {
+-        return mWebSocket.isClosed();
+-    }
+-
+-    @Override
+-    public Draft getDraft() {
+-        return mWebSocket.getDraft();
+-    }
+-
+-    @Override
+-    public ReadyState getReadyState() {
+-        return mWebSocket.getReadyState();
+-    }
+-
+-    @Override
+-    public String getResourceDescriptor() {
+-        return mWebSocket.getResourceDescriptor();
+-    }
+-
+-    @Override
+-    public <T> void setAttachment(T attachment) {
+-        mWebSocket.setAttachment(attachment);
+-    }
+-
+-    @Override
+-    public <T> T getAttachment() {
+-        return mWebSocket.getAttachment();
+-    }
+-
+-    @Override
+-    public boolean hasSSLSupport() {
+-        return mWebSocket.hasSSLSupport();
+-    }
+-
+-    @Override
+-    public SSLSession getSSLSession() throws IllegalArgumentException {
+-        return mWebSocket.getSSLSession();
+-    }
+-
+-    @Override
+-    public IProtocol getProtocol() {
+-        return mWebSocket.getProtocol();
+-    }
+-}
+diff --git a/apl/src/main/java/com/amazon/apl/devtools/controllers/DTWebSocketServer.java b/apl/src/main/java/com/amazon/apl/devtools/controllers/DTWebSocketServer.java
+index 210857a..2d7f30e 100644
+--- a/apl/src/main/java/com/amazon/apl/devtools/controllers/DTWebSocketServer.java
++++ b/apl/src/main/java/com/amazon/apl/devtools/controllers/DTWebSocketServer.java
+@@ -6,6 +6,7 @@
+ package com.amazon.apl.devtools.controllers;
+ 
+ import android.util.Log;
++import com.amazon.apl.devtools.controllers.impl.DTConnection;
+ 
+ import com.amazon.apl.devtools.util.CommandRequestFactory;
+ 
+diff --git a/apl/src/main/java/com/amazon/apl/devtools/executers/ViewGetJSONDocumentRequest.java b/apl/src/main/java/com/amazon/apl/devtools/executers/ViewGetJSONDocumentRequest.java
+index 548ded0..43b0f3b 100644
+--- a/apl/src/main/java/com/amazon/apl/devtools/executers/ViewGetJSONDocumentRequest.java
++++ b/apl/src/main/java/com/amazon/apl/devtools/executers/ViewGetJSONDocumentRequest.java
+@@ -4,7 +4,7 @@ import android.util.Log;
+ 
+ import com.amazon.apl.devtools.models.view.ViewGetJSONDocumentRequestModel;
+ import com.amazon.apl.devtools.models.view.ViewGetJSONDocumentResponse;
+-import com.amazon.apl.devtools.controllers.DTConnection;
++import com.amazon.apl.devtools.controllers.impl.DTConnection;
+ import com.amazon.apl.devtools.enums.CommandMethod;
+ import com.amazon.apl.devtools.models.Session;
+ import com.amazon.apl.devtools.models.ViewTypeTarget;
+diff --git a/buildSrc/build.gradle b/buildSrc/build.gradle
+new file mode 100644
+index 0000000..7271976
+--- /dev/null
++++ b/buildSrc/build.gradle
+@@ -0,0 +1,4 @@
++// Reconstrução mínima do buildSrc interno da Amazon, ausente no repositório público (v2024.3.0).
++apply plugin: 'groovy'
++repositories { mavenCentral() }
++dependencies { implementation gradleApi(); implementation localGroovy() }
+diff --git a/buildSrc/src/main/groovy/com/amazon/apl/android/APLPlugin.groovy b/buildSrc/src/main/groovy/com/amazon/apl/android/APLPlugin.groovy
+new file mode 100644
+index 0000000..e4dbbeb
+--- /dev/null
++++ b/buildSrc/src/main/groovy/com/amazon/apl/android/APLPlugin.groovy
+@@ -0,0 +1,9 @@
++package com.amazon.apl.android
++
++import org.gradle.api.Plugin
++import org.gradle.api.Project
++
++/** Substituto do plugin interno: os módulos já declaram compileSdk, NDK e prefab por conta própria. */
++class APLPlugin implements Plugin<Project> {
++    void apply(Project project) {}
++}
+diff --git a/buildSrc/src/main/groovy/com/amazon/apl/android/EnumGenerator.groovy b/buildSrc/src/main/groovy/com/amazon/apl/android/EnumGenerator.groovy
+new file mode 100644
+index 0000000..4bfe16e
+--- /dev/null
++++ b/buildSrc/src/main/groovy/com/amazon/apl/android/EnumGenerator.groovy
+@@ -0,0 +1,12 @@
++package com.amazon.apl.android
++
++import org.gradle.api.DefaultTask
++import org.gradle.api.tasks.Internal
++import org.gradle.api.tasks.TaskAction
++
++/** Substituto do gerador de enums: os enums gerados já estão versionados em apl/src/main/java/com/amazon/apl/enums. */
++class EnumGenerator extends DefaultTask {
++    @Internal List<String> enums = []
++    void importedEnums(String... names) { enums.addAll(names) }
++    @TaskAction void generate() { logger.lifecycle("EnumGenerator: ${enums.size()} enums já versionados, nada a gerar") }
++}
+diff --git a/settings.gradle b/settings.gradle
+index b5ea152..83619d7 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -3,8 +3,8 @@
+  * SPDX-License-Identifier: Apache-2.0
+  */
+ 
+-include ':apl', ':common', ':commonTest', ':app', ':ttsplayer', ':back', ':metrics',  ':discovery', ':service', ':e2ee'
+-include ':automationapp'
++include ':apl', ':common', ':commonTest', ':discovery'
++
+ include ':alexaextjni'
+ 
+ dependencyResolutionManagement {

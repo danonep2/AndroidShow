@@ -6,6 +6,7 @@ import com.androidshow.alexa.avs.Directive
 import com.androidshow.alexa.avs.avsEvent
 import com.androidshow.alexa.avs.avsState
 import com.androidshow.alexa.diag.DiagLog
+import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.net.str
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -26,7 +27,12 @@ import kotlinx.serialization.json.putJsonObject
 /** O que a tela do modo Show está mostrando. */
 sealed interface ShowScreen {
     /** Home do Echo Show: relógio e os cartões recebidos por DEV.Alexa.Presentation.Home.UpdateData. */
-    data class Home(val cards: List<JsonObject> = emptyList()) : ShowScreen
+    data class Home(
+        val cards: List<JsonObject> = emptyList(),
+        /** Documento APL da home (SPA) e o parâmetro "payload" montado com os dados, para o renderizador. */
+        val document: String? = null,
+        val payload: String? = null,
+    ) : ShowScreen
 
     /** Cartão TemplateRuntime.RenderTemplate (BodyTemplate1/2, ListTemplate1, WeatherTemplate...). */
     data class Card(val template: JsonObject) : ShowScreen
@@ -35,7 +41,14 @@ sealed interface ShowScreen {
     data class Player(val info: JsonObject) : ShowScreen
 
     /** Alexa.Presentation.APL.RenderDocument. */
-    data class Apl(val token: String, val document: JsonObject, val datasources: JsonObject?) : ShowScreen
+    data class Apl(val token: String, val document: JsonObject, val datasources: JsonObject?) : ShowScreen {
+        /**
+         * Valor de um parâmetro do mainTemplate: o datasource de mesmo nome ou, por convenção do
+         * AVS, todos os datasources quando o parâmetro é "payload".
+         */
+        fun dataFor(name: String): String? =
+            datasources?.get(name)?.toString() ?: if (name == "payload") datasources?.toString() else null
+    }
 }
 
 /**
@@ -106,7 +119,38 @@ class ShowModeController(private val scope: CoroutineScope) {
         val order = homeDataIds()
         val sorted = if (order.isEmpty()) homeItems.values.toList()
         else order.mapNotNull { homeItems[it] } + homeItems.filterKeys { it !in order }.values
-        return ShowScreen.Home(sorted)
+        val doc = homeDocument
+        val refs = (doc?.obj("datasources")?.get("items") as? kotlinx.serialization.json.JsonArray).orEmpty()
+        // Como o app Windows (AssembleSPADocumentAndData): cada página recebe o item do UpdateData.
+        val payload = if (doc != null && homeItems.isNotEmpty()) buildJsonObject {
+            put("items", kotlinx.serialization.json.JsonArray(refs.map { ref ->
+                val id = (ref as? JsonObject)?.str("dataId")
+                id?.let { homeItems[it]?.obj("data") } ?: ref
+            }))
+        }.toString() else null
+        return ShowScreen.Home(sorted, doc?.obj("document")?.toString(), payload)
+    }
+
+    /**
+     * SendEvent de um documento APL. Na home, a troca de página é só telemetria; nas skills, vira
+     * Alexa.Presentation.APL.UserEvent com os argumentos do comando.
+     */
+    fun onAplSendEvent(token: String, args: Array<Any?>) {
+        val json = runCatching { Http.json.parseToJsonElement(org.json.JSONArray(args).toString()) }.getOrNull()
+            as? kotlinx.serialization.json.JsonArray ?: return
+        val first = json.firstOrNull() as? JsonObject
+        if (first?.get("isMMHomePagerOnPageChanged") != null) return
+        DiagLog.i("show", "APL UserEvent: ${json.toString().take(300)}")
+        scope.launch {
+            runCatching {
+                sendEvent?.invoke(avsEvent("Alexa.Presentation.APL", "UserEvent", buildJsonObject {
+                    put("presentationToken", token)
+                    put("arguments", json)
+                    put("source", buildJsonObject { put("type", "TouchWrapper"); put("handler", "Press") })
+                    put("components", JsonObject(emptyMap()))
+                }))
+            }.onFailure { DiagLog.w("show", "UserEvent falhou", it) }
+        }
     }
 
     /** Guarda os itens de UpdateData: qualquer objeto com id "pull://…" (formato do MMHomeDataStore do Windows). */

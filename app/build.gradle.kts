@@ -61,6 +61,14 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.onnxruntime.android)
 
+    // Renderizador APL oficial (apl-viewhost-android 2024.3) compilado localmente para arm64; ver docs/APL.md.
+    implementation(files("libs/apl-release.aar", "libs/common-release.aar", "libs/discovery-standard-release.aar"))
+    implementation(libs.glide)
+    implementation(libs.guava)
+    implementation(libs.auto.value.annotations)
+    implementation(libs.java.websocket)
+    implementation(libs.androidx.appcompat)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
