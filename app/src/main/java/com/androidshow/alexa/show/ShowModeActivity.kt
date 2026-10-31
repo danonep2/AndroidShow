@@ -3,6 +3,8 @@ package com.androidshow.alexa.show
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.KeyEvent
+import androidx.activity.OnBackPressedCallback
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +23,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -67,6 +73,10 @@ class ShowModeActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+        // Gesto de voltar (Android 13+ usa OnBackInvoked, que não passa por dispatchKeyEvent).
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = finish()
+        })
         val show = graph.show
         val alexa = graph.alexa
         setContent {
@@ -99,6 +109,14 @@ class ShowModeActivity : ComponentActivity() {
                                     }
                             }
                         }
+                        // Volta à tela inicial do app. Fica no canto oposto ao do microfone.
+                        SmallFloatingActionButton(
+                            onClick = ::finish,
+                            shape = CircleShape,
+                            containerColor = Color(0x80000000),
+                            contentColor = Color.White,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(24.dp),
+                        ) { Icon(Icons.Filled.Home, contentDescription = "Sair do modo Show") }
                         FloatingActionButton(
                             onClick = { toggleMic(alexa, dialog) },
                             shape = CircleShape,
@@ -110,6 +128,18 @@ class ShowModeActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * O "voltar" sempre fecha o modo Show. A view do APL recebe o foco e consumia a tecla, deixando
+     * o usuário preso; dispatchKeyEvent da Activity roda antes de qualquer view.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_UP) finish()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onStart() {
