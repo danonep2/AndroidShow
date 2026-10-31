@@ -21,6 +21,8 @@ class AudioCapture(
     private val mic: Microphone,
     private val preroll: List<ShortArray> = emptyList(),
     private val maxDurationMs: Long = 10_000,
+    /** false: não corta por silêncio localmente, espera o StopCapture (ativação por palavra). */
+    private val localEndpointing: Boolean = true,
     /** Em builds de debug, cópia do PCM enviado para análise. */
     private val debugCopy: File? = null,
 ) : RequestBody() {
@@ -74,6 +76,7 @@ class AudioCapture(
                 val frame = queue.poll(200, TimeUnit.MILLISECONDS) ?: continue
                 val squares = write(frame)
                 sink.flush()
+                if (!localEndpointing) continue
                 when (vad.feed(sqrt(squares / frame.size).toInt())) {
                     EndOfSpeech.Result.Ended -> { reason = "fim da fala (local)"; break }
                     EndOfSpeech.Result.NoSpeech -> { reason = "sem fala"; break }

@@ -121,14 +121,16 @@ class AlexaService(
             .onFailure { DiagLog.w("avs", "SettingsUpdated falhou", it) }
     }
 
-    /** Toque no microfone: abre um Recognize e transmite o áudio até o StopCapture. */
     /**
      * Palavra de ativação detectada. Com verificação na nuvem, envia os 2 s anteriores (que contêm a
      * palavra) e marca onde ela está; senão, age como um toque e envia só o que vem depois.
+     *
+     * O fim da fala fica só com o StopCapture da nuvem: o detector local calibraria o ruído com o
+     * usuário ainda falando e cortaria cedo [Observado: corte em 1,2 s].
      */
     fun onWakeWord(preroll: List<ShortArray>, config: WakeWordConfig) {
         if (!config.cloudVerified) {
-            startListening()
+            startListening(localEndpointing = false)
             return
         }
         val end = preroll.size * Microphone.FRAME_SAMPLES
@@ -143,12 +145,17 @@ class AlexaService(
                 })
             })
         }
-        startListening(initiator, preroll)
+        startListening(initiator, preroll, localEndpointing = false)
     }
 
-    fun startListening(initiator: JsonObject? = null, preroll: List<ShortArray> = emptyList()): Job? {
+    /** Toque no microfone: abre um Recognize e transmite o áudio até o StopCapture. */
+    fun startListening(
+        initiator: JsonObject? = null,
+        preroll: List<ShortArray> = emptyList(),
+        localEndpointing: Boolean = true,
+    ): Job? {
         if (capture != null) return null
-        val mic = AudioCapture(microphone, preroll, debugCopy = debugAudio)
+        val mic = AudioCapture(microphone, preroll, localEndpointing = localEndpointing, debugCopy = debugAudio)
         capture = mic
         _dialog.value = Dialog.Listening
         val payload = buildJsonObject {
@@ -187,6 +194,8 @@ class AlexaService(
             "Speaker.SetMute" -> setMute(d.payload["mute"]?.toString() == "true")
             "System.SetEndpoint" -> d.payload.str("endpoint")?.let(avs::setEndpoint)
             "System.ResetUserInactivity" -> Unit
+            // A nuvem pede o estado atual; o contexto vai junto em todo evento.
+            "System.ReportState" -> avs.sendEvent(avsEvent("System", "StateReport"))
             else -> if (displayHandler?.invoke(d) != true) Log.i(TAG, "Diretiva sem handler: ${d.key} ${d.payload}")
         }
     }

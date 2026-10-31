@@ -154,6 +154,7 @@ private fun SessionPanel(s: Session, alexa: AlexaService, onLogout: () -> Unit) 
         OutlinedButton(onClick = onLogout) { Text("Sair") }
     }
     WakeWordPanel()
+    BackgroundPanel()
     LazyColumn(Modifier.fillMaxWidth()) {
         items(log.asReversed()) { Text(it, style = MaterialTheme.typography.bodySmall) }
     }

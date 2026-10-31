@@ -19,8 +19,8 @@ import java.nio.FloatBuffer
  *
  * Otimizações sobre o original:
  * - XNNPACK (kernels ARM otimizados) em vez do executor padrão de CPU;
- * - porta de energia: com ~1 s seguido de silêncio, reaproveita o embedding de silêncio e pula
- *   embedding e classificador (a palavra não pode estar num trecho sem som).
+ * - porta de energia: com ~1 s seguido de silêncio, reaproveita linhas mel e embedding de silêncio
+ *   e não roda nenhum modelo (a palavra não pode estar num trecho sem som).
  *
  * Uma instância por palavra; chamar [process] sempre na mesma thread.
  */
@@ -55,6 +55,7 @@ class OpenWakeWord(context: Context, modelFile: String, val xnnpack: Boolean = t
     private var noiseFloor = 200f
     private var hangover = 0
     private var silentEmbedding: FloatArray? = null
+    private var silentMel: List<FloatArray>? = null
     private var gatedSinceRefresh = 0
     private val mel = session(context, "$DIR/melspectrogram.onnx")
     private val embedding = session(context, "$DIR/embedding_model.onnx")
@@ -106,25 +107,33 @@ class OpenWakeWord(context: Context, modelFile: String, val xnnpack: Boolean = t
             noiseFloor = noiseFloor * 0.95f + rms * 0.05f
         }
 
-        // O mel roda sempre: a janela do embedding precisa dos últimos 760 ms reais quando a voz voltar.
-        var t = System.nanoTime()
-        run(mel, melInput, raw, longArrayOf(1, raw.size.toLong())) { out ->
-            @Suppress("UNCHECKED_CAST")
-            val spec = (out as Array<Array<Array<FloatArray>>>)[0][0]
-            for (row in spec) melFrames.addLast(FloatArray(MEL_BANDS) { row[it] / 10f + 2f })
-        }
-        while (melFrames.size > MAX_MEL_FRAMES) melFrames.removeFirst()
-        stats.melNanos += System.nanoTime() - t
-
+        // Em silêncio contínuo, nenhum modelo roda: entram linhas mel e embedding de silêncio guardados.
+        // Quando a voz volta, a janela do embedding tem até ~1 s dessas linhas sintéticas antes da fala.
         val silent = hangover == 0
-        val cached = silentEmbedding
-        if (silent && cached != null && features.size >= featureFrames && gatedSinceRefresh < REFRESH_SILENCE_FRAMES) {
+        val cachedEmbedding = silentEmbedding
+        val cachedMel = silentMel
+        if (silent && cachedEmbedding != null && cachedMel != null && features.size >= featureFrames &&
+            gatedSinceRefresh < REFRESH_SILENCE_FRAMES
+        ) {
             gatedSinceRefresh++
-            features.addLast(cached)
+            cachedMel.forEach(melFrames::addLast)
+            while (melFrames.size > MAX_MEL_FRAMES) melFrames.removeFirst()
+            features.addLast(cachedEmbedding)
             while (features.size > MAX_FEATURES) features.removeFirst()
             stats.gated++
             return 0f
         }
+
+        var t = System.nanoTime()
+        run(mel, melInput, raw, longArrayOf(1, raw.size.toLong())) { out ->
+            @Suppress("UNCHECKED_CAST")
+            val spec = (out as Array<Array<Array<FloatArray>>>)[0][0]
+            val rows = spec.map { row -> FloatArray(MEL_BANDS) { row[it] / 10f + 2f } }
+            rows.forEach(melFrames::addLast)
+            if (silent) silentMel = rows
+        }
+        while (melFrames.size > MAX_MEL_FRAMES) melFrames.removeFirst()
+        stats.melNanos += System.nanoTime() - t
 
         t = System.nanoTime()
         val start = melFrames.size - EMBEDDING_WINDOW
