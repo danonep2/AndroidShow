@@ -2,6 +2,8 @@ package com.androidshow.alexa.show.apl
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
@@ -94,9 +96,11 @@ fun AplDocument(
     key(document) {
         val holder = remember { arrayOfNulls<IAPLController>(1) }
         AndroidView(
-            modifier = modifier,
+            // Sem tamanho explícito o AndroidView mede o conteúdo e o APLLayout fica 0×0 (tela preta).
+            modifier = modifier.fillMaxSize(),
             factory = { ctx ->
                 val layout = LayoutInflater.from(ctx).inflate(R.layout.apl_layout, null) as APLLayout
+                layout.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 val options = APLOptions.builder()
                     .packageLoader(Apl.packageLoader)
                     .contentDataRetriever { request, success, failure ->
