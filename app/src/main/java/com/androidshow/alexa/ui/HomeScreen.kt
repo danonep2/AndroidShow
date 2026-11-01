@@ -17,7 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -34,7 +36,7 @@ import com.androidshow.alexa.avs.AvsClient
 
 /** Tela inicial limpa: só o círculo e a onda. Tocar no círculo fala com a Alexa. */
 @Composable
-fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit) {
+fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit, onShowMode: () -> Unit) {
     val context = LocalContext.current
     val connection by alexa.connection.collectAsStateWithLifecycle()
     val dialog by alexa.dialog.collectAsStateWithLifecycle()
@@ -61,8 +63,20 @@ fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit) {
                     }
                 },
         )
-        IconButton(onClick = onSettings, modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
-            Icon(Icons.Filled.Settings, contentDescription = "Ajustes", tint = Color.White.copy(alpha = 0.45f))
+        Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HomeButton(AppIcons.Screen, "Modo Show", onShowMode)
+            HomeButton(Icons.Filled.Settings, "Ajustes", onSettings)
         }
+    }
+}
+
+/** Botão redondo translúcido, discreto sobre o fundo escuro. */
+@Composable
+private fun HomeButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(22.dp))
     }
 }
