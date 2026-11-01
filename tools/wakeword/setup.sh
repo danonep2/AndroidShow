@@ -35,6 +35,8 @@ source .venv/bin/activate
 step "Repositórios"
 [ -d openwakeword ] || git clone -q https://github.com/dscripka/openWakeWord openwakeword
 [ -d piper-sample-generator ] || git clone -q https://github.com/rhasspy/piper-sample-generator
+# Versões mais novas viraram pacote e o train.py do openWakeWord não encontra mais generate_samples.
+git -C piper-sample-generator checkout -q 4057c1a
 GEN=piper-sample-generator/models/en_US-libritts_r-medium.pt
 [ -f "$GEN" ] || curl -L --fail -o "$GEN" \
     https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt

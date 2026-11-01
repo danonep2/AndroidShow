@@ -2,7 +2,7 @@
 # Treina um modelo de palavra de ativação compatível com o app (classificador do openWakeWord).
 #
 #   bash tools/wakeword/train.sh Gerson
-#   SPELLINGS="zhair son,zher sohn" bash tools/wakeword/train.sh Gerson
+#   SPELLINGS="zhairsong,zhair sohn,zhersown,zhare sone" bash tools/wakeword/train.sh Gerson
 #
 # O gerador de vozes do openWakeWord é em inglês: SPELLINGS são grafias que fazem essas vozes
 # falarem a palavra perto da pronúncia brasileira (o padrão é a própria palavra). Além delas,
@@ -46,7 +46,6 @@ c.update({
     "steps": int(steps),
     "target_accuracy": 0.7,
     "target_recall": 0.5,
-    "target_false_positives_per_hour": 0.5,
     "output_dir": "runs",
     "piper_sample_generator_path": "./piper-sample-generator",
     "rir_paths": ["data/mit_rirs"],

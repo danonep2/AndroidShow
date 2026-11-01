@@ -5,7 +5,8 @@ Roda no WSL2 (Ubuntu 24.04) com GPU NVIDIA.
 
 ```bash
 bash tools/wakeword/setup.sh          # uma vez: Python 3.10, PyTorch com CUDA, ~22 GB de dados
-SPELLINGS="zhair son,zher sohn,jair son" bash tools/wakeword/train.sh Gerson
+# Grafias escolhidas comparando os fonemas do espeak: en-us "zhairsong" = ʒˈɛɹsɔŋ, perto do pt-BR ʒˈɛɾsõ.
+SPELLINGS="zhairsong,zhair sohn,zhersown,zhare sone" bash tools/wakeword/train.sh Gerson
 ```
 
 Resultado em `tools/wakeword/out/<palavra>.onnx`. Dados, ambiente e logs ficam em `~/wakeword`, dentro do WSL.
