@@ -9,12 +9,12 @@ Uso: python download_audio.py <pasta de dados>. Pula o que já foi baixado.
 import os
 import subprocess
 import sys
-import tarfile
 import urllib.request
 from pathlib import Path
 
 import datasets
 import numpy as np
+import pyarrow.parquet as pq
 import scipy.io.wavfile
 from tqdm import tqdm
 
@@ -37,31 +37,24 @@ if not done(rirs, 200):
         write(rirs / Path(row["audio"]["path"]).name, row["audio"]["array"])
 
 audioset = root / "audioset_16k"
-if not done(audioset, 1000):
+if not done(audioset, 400):
     audioset.mkdir(exist_ok=True)
-    tar = root / "bal_train09.tar"
-    if not tar.exists():
-        # O repositório do AudioSet já mudou de estrutura; tenta os dois caminhos conhecidos.
-        for url in (
-            "https://huggingface.co/datasets/agkphysics/AudioSet/resolve/main/data/bal_train09.tar",
-            "https://huggingface.co/datasets/agkphysics/AudioSet/resolve/main/bal_train09.tar",
-        ):
-            try:
-                print("AudioSet:", url)
-                urllib.request.urlretrieve(url, tar)
-                break
-            except Exception as e:  # noqa: BLE001
-                print("  falhou:", e)
-                tar.unlink(missing_ok=True)
-        else:
-            sys.exit("Não deu para baixar o AudioSet.")
-    raw = root / "audioset_raw"
-    with tarfile.open(tar) as t:
-        t.extractall(raw)
-    for f in tqdm(sorted(raw.rglob("*.flac")), desc="AudioSet → 16 kHz"):
-        out = audioset / (f.stem + ".wav")
-        if not out.exists():
-            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(f), "-ar", "16000", "-ac", "1", str(out)], check=False)
+    # O AudioSet do Hugging Face hoje vem em parquet (antes eram .tar com .flac); um arquivo
+    # tem ~680 MB e cerca de 500 clipes de 10 s.
+    parquet = root / "audioset_bal_train_09.parquet"
+    if not parquet.exists():
+        url = "https://huggingface.co/datasets/agkphysics/AudioSet/resolve/main/data/bal_train/09.parquet"
+        print("AudioSet:", url)
+        urllib.request.urlretrieve(url, str(parquet) + ".part")
+        os.replace(str(parquet) + ".part", parquet)
+    table = pq.read_table(parquet, columns=["audio"])
+    for i, row in enumerate(tqdm(table.column("audio").to_pylist(), desc="AudioSet → 16 kHz")):
+        out = audioset / f"{i:05d}.wav"
+        if out.exists() or not row or not row.get("bytes"):
+            continue
+        # ffmpeg aceita qualquer formato que venha nos bytes (flac, mp3, ogg).
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", "pipe:0", "-ar", "16000", "-ac", "1", str(out)],
+                       input=row["bytes"], check=False)
 
 fma = root / "fma"
 if not done(fma, 100):

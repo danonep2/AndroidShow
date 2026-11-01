@@ -48,7 +48,7 @@ uv pip install -q \
     "numpy==1.26.4" "scipy==1.11.4" piper-phonemize==1.1.0 webrtcvad \
     mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 speechbrain==0.5.14 \
     audiomentations==0.33.0 torch-audiomentations==0.11.0 acoustics==0.2.6 \
-    pronouncing==0.2.0 datasets==2.14.6 "fsspec<=2023.9.2" deep-phonemizer==0.0.19 \
+    pronouncing==0.2.0 datasets==2.14.6 "fsspec<=2023.9.2" "pyarrow==14.0.2" deep-phonemizer==0.0.19 \
     pyyaml soundfile piper-tts==1.2.0 onnx onnxruntime
 python - <<'EOF'
 import torch
