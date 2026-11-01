@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.androidshow.alexa.AlexaService
+import com.androidshow.alexa.R
 import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.graph
 import com.androidshow.alexa.ui.MainActivity
@@ -74,7 +75,8 @@ class WakeWordService : android.app.Service() {
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(NOTIFICATION_COLOR)
             .setContentTitle("Ouvindo \"$label\"")
             .setContentText("Diga \"$label\" para falar com a Alexa")
             .setContentIntent(open)
@@ -85,6 +87,8 @@ class WakeWordService : android.app.Service() {
     companion object {
         private const val CHANNEL = "wakeword"
         private const val NOTIFICATION_ID = 1
+        /** Roxo primário clareado: o sistema usa como destaque do ícone e do nome do app. */
+        private const val NOTIFICATION_COLOR = 0xFF8A6FD0.toInt()
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, WakeWordService::class.java))
