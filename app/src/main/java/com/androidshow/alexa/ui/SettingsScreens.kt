@@ -67,6 +67,7 @@ fun SettingsScreen(
     alexa: AlexaService,
     onBack: () -> Unit,
     onVoiceActivation: () -> Unit,
+    onShowMode: () -> Unit,
     onHistory: () -> Unit,
     onCopyDiagnostics: () -> Unit,
     onLogout: () -> Unit,
@@ -74,6 +75,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val connection by alexa.connection.collectAsStateWithLifecycle()
     val wake by context.graph.wakeWord.config.collectAsStateWithLifecycle()
+    val show by context.graph.showSettings.config.collectAsStateWithLifecycle()
     val background = rememberBackgroundExemption()
     var confirmLogout by remember { mutableStateOf(false) }
 
@@ -83,6 +85,10 @@ fun SettingsScreen(
             IosRow(
                 "Ativação por voz", icon = AppIcons.Mic, iconColor = Palette.Primary,
                 value = if (wake.enabled) wake.label else "Desativada", onClick = onVoiceActivation,
+            )
+            IosRow(
+                "Modo Show", icon = AppIcons.Screen, iconColor = Palette.Accent,
+                value = if (show.carousel) "Carrossel" else "Fixo", onClick = onShowMode,
             )
             IosRow(
                 "Conexão", icon = AppIcons.Cloud, iconColor = Palette.Secondary,
@@ -198,6 +204,58 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
             IosRow("Verificar na nuvem", trailing = {
                 IosSwitch(config.cloudVerified) { apply(config.copy(cloudVerified = it)) }
             })
+        }
+    }
+}
+
+/** Ajustes da home do modo Show. */
+@Composable
+fun ShowModeSettingsScreen(onBack: () -> Unit, onCategories: () -> Unit) {
+    val settings = LocalContext.current.graph.showSettings
+    val config by settings.config.collectAsStateWithLifecycle()
+    val shown = config.categories.count { it.id !in config.hidden }
+
+    IosPage("Modo Show", back = "Ajustes", onBack = onBack) {
+        section(footer = "Desativado, a home mostra só o primeiro cartão que chega ao abrir o modo Show, sem girar.") {
+            IosRow("Ativar Carrossel", trailing = {
+                IosSwitch(config.carousel) { on -> settings.update { it.copy(carousel = on) } }
+            })
+        }
+        section(footer = "Escolha que tipos de cartão aparecem na home.") {
+            IosRow(
+                "Telas listadas",
+                value = if (config.categories.isEmpty()) null else "$shown de ${config.categories.size}",
+                onClick = onCategories,
+            )
+        }
+    }
+}
+
+/** Liga e desliga cada categoria de cartão da home. */
+@Composable
+fun ShowCategoriesScreen(onBack: () -> Unit) {
+    val settings = LocalContext.current.graph.showSettings
+    val config by settings.config.collectAsStateWithLifecycle()
+
+    IosPage("Telas listadas", back = "Modo Show", onBack = onBack) {
+        if (config.categories.isEmpty()) {
+            item {
+                Text(
+                    "Abra o modo Show uma vez para a Alexa enviar as telas disponíveis.",
+                    color = Ios.SecondaryLabel, fontSize = 15.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 24.dp, end = 24.dp),
+                )
+            }
+        } else {
+            section(footer = "As telas vêm da sua conta Amazon; novas aparecem aqui quando a Alexa enviar.") {
+                config.categories.forEach { c ->
+                    IosRow(c.label, subtitle = c.description, trailing = {
+                        IosSwitch(c.id !in config.hidden) { on ->
+                            settings.update { it.copy(hidden = if (on) it.hidden - c.id else it.hidden + c.id) }
+                        }
+                    })
+                }
+            }
         }
     }
 }

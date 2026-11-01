@@ -104,7 +104,7 @@ class ShowModeActivity : ComponentActivity() {
                                     if (Apl.ready && s.document != null && s.payload != null) {
                                         AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
                                     } else {
-                                        HomeScreen(s.cards)
+                                        HomeScreen(s.cards, carousel = s.carousel)
                                     }
                                 is ShowScreen.Card -> TemplateCard(s.template)
                                 is ShowScreen.Player -> PlayerCard(s.info)

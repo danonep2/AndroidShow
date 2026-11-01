@@ -44,14 +44,15 @@ import java.util.Date
  * até o documento APL da home (SPA) ser desenhado pelo renderizador APL.
  */
 @Composable
-fun HomeScreen(cards: List<JsonObject>, modifier: Modifier = Modifier) {
+fun HomeScreen(cards: List<JsonObject>, modifier: Modifier = Modifier, carousel: Boolean = true) {
     if (cards.isEmpty()) {
         Clock(modifier)
         return
     }
     var index by remember { mutableIntStateOf(0) }
-    LaunchedEffect(cards.size) {
-        while (true) {
+    LaunchedEffect(cards.size, carousel) {
+        if (!carousel) index = 0
+        while (carousel) {
             delay(ROTATE_MS)
             index = (index + 1) % cards.size
         }

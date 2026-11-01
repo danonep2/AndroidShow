@@ -34,6 +34,8 @@ sealed interface ShowScreen {
         val payload: String? = null,
         /** Muda a cada "ir para a home" estando já nela: recria o documento na primeira página. */
         val generation: Int = 0,
+        /** false: fica no primeiro cartão, sem girar (Ajustes → Modo Show → Ativar Carrossel). */
+        val carousel: Boolean = true,
     ) : ShowScreen
 
     /** Cartão TemplateRuntime.RenderTemplate (BodyTemplate1/2, ListTemplate1, WeatherTemplate...). */
@@ -57,9 +59,16 @@ sealed interface ShowScreen {
  * Estado do modo Show. Recebe as diretivas visuais do [com.androidshow.alexa.AlexaService],
  * decide a tela atual, volta para a home após o tempo limite e descreve a janela no contexto.
  */
-class ShowModeController(private val scope: CoroutineScope) {
+class ShowModeController(private val scope: CoroutineScope, private val settings: ShowSettings) {
     private val _screen = MutableStateFlow<ShowScreen>(ShowScreen.Home())
     val screen: StateFlow<ShowScreen> = _screen.asStateFlow()
+
+    init {
+        // Mudou nos Ajustes: redesenha a home já com ou sem carrossel.
+        scope.launch {
+            settings.config.collect { if (_screen.value is ShowScreen.Home) _screen.value = homeScreen() }
+        }
+    }
 
     private val _visible = MutableStateFlow(false)
     /** True enquanto a tela do modo Show está aberta: só então o contexto anuncia uma janela. */
@@ -117,20 +126,67 @@ class ShowModeController(private val scope: CoroutineScope) {
         })
     }
 
+    /** Nomes das opções da home vindos do UpdateSettingSchemas, por id da opção. */
+    private val homeSchemas = mutableMapOf<String, ShowCategory>()
+
+    /** Registra nos Ajustes as categorias dos cartões recebidos, com o nome dado pela Amazon. */
+    private fun rememberCategories() {
+        val seen = homeItems.values.mapNotNull(::categoryOf).distinct()
+        settings.update { c ->
+            val known = c.categories.associateBy { it.id }.toMutableMap()
+            for (id in seen) {
+                val schema = SCHEMA_FOR_CATEGORY[id]?.let(homeSchemas::get)
+                known[id] = ShowCategory(id, schema?.label ?: known[id]?.label ?: id, schema?.description ?: known[id]?.description)
+            }
+            c.copy(categories = known.values.sortedBy { it.label })
+        }
+    }
+
     private fun homeScreen(): ShowScreen.Home {
+        val hidden = settings.config.value.hidden
+        val items = homeItems.filterValues { categoryOf(it) !in hidden }
         val order = homeDataIds()
-        val sorted = if (order.isEmpty()) homeItems.values.toList()
-        else order.mapNotNull { homeItems[it] } + homeItems.filterKeys { it !in order }.values
+        val sorted = if (order.isEmpty()) items.values.toList()
+        else order.mapNotNull { items[it] } + items.filterKeys { it !in order }.values
         val doc = homeDocument
         val refs = (doc?.obj("datasources")?.get("items") as? kotlinx.serialization.json.JsonArray).orEmpty()
         // Como o app Windows (AssembleSPADocumentAndData): cada página recebe o item do UpdateData.
-        val payload = if (doc != null && homeItems.isNotEmpty()) buildJsonObject {
+        // Página sem dados fica escondida pelo "when" do documento; é assim que some uma categoria.
+        val payload = if (doc != null && items.isNotEmpty()) buildJsonObject {
             put("items", kotlinx.serialization.json.JsonArray(refs.map { ref ->
                 val id = (ref as? JsonObject)?.str("dataId")
-                id?.let { homeItems[it]?.obj("data") } ?: ref
+                id?.let { items[it]?.obj("data") } ?: ref
             }))
         }.toString().replace(WAKE_WORD_PLACEHOLDER, "Alexa") else null
-        return ShowScreen.Home(sorted, doc?.obj("document")?.toString(), payload, homeGeneration)
+        val carousel = settings.config.value.carousel
+        val document = doc?.obj("document")?.let { if (carousel) it else withoutPaging(it) }
+        return ShowScreen.Home(sorted, document?.toString(), payload, homeGeneration, carousel)
+    }
+
+    /**
+     * Home parada na primeira página: o pager gira chamando o comando NextPage do documento
+     * (SetPage relativo a cada 10 s) [Observado no documento SPA]; vira Idle e o arrastar é travado.
+     */
+    private fun withoutPaging(document: JsonObject): JsonObject {
+        val commands = document.obj("commands")
+        val mainTemplate = document.obj("mainTemplate")
+        return JsonObject(document + buildMap {
+            if (commands?.containsKey("NextPage") == true) {
+                put("commands", JsonObject(commands + ("NextPage" to buildJsonObject {
+                    putJsonObject("command") { put("type", "Idle") }
+                })))
+            }
+            if (mainTemplate != null) put("mainTemplate", lockPager(mainTemplate) as JsonObject)
+        })
+    }
+
+    /** Põe navigation "none" no pager principal da home (mmHomeMainPager). */
+    private fun lockPager(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
+        is JsonObject ->
+            if (e.str("id") == HOME_PAGER_ID) JsonObject(e + ("navigation" to kotlinx.serialization.json.JsonPrimitive("none")))
+            else JsonObject(e.mapValues { lockPager(it.value) })
+        is JsonArray -> JsonArray(e.map(::lockPager))
+        else -> e
     }
 
     /**
@@ -209,9 +265,18 @@ class ShowModeController(private val scope: CoroutineScope) {
                         homeDocument = d.payload
                         if (homeItems.isEmpty()) scope.launch { requestHomeData() }
                     }
+                    "UpdateSettingSchemas" -> {
+                        (d.payload["schemas"] as? JsonArray).orEmpty().forEach { s ->
+                            val o = s as? JsonObject ?: return@forEach
+                            val id = o.str("id") ?: return@forEach
+                            homeSchemas[id] = ShowCategory(id, o.str("name") ?: id, o.str("description"))
+                        }
+                        if (homeItems.isNotEmpty()) rememberCategories()
+                    }
                     "UpdateData" -> {
                         collectHomeItems(d.payload)
                         DiagLog.i("show", "home: ${homeItems.size} cartões")
+                        rememberCategories()
                         if (_screen.value is ShowScreen.Home) _screen.value = homeScreen()
                     }
                     else -> DiagLog.i("show", "home ${d.name}")
@@ -291,6 +356,21 @@ class ShowModeController(private val scope: CoroutineScope) {
         /** As dicas da home vêm com "{WakeWord}"; o app Windows troca pela palavra antes de desenhar. */
         const val WAKE_WORD_PLACEHOLDER = "{WakeWord}"
         const val WINDOW_ID = "app_window"
+        const val HOME_PAGER_ID = "mmHomeMainPager"
+
+        /**
+         * Categoria do cartão → opção do UpdateSettingSchemas que a liga e desliga. [Inferido] O
+         * protocolo não liga um ao outro; o par saiu da comparação dos nomes e descrições.
+         */
+        val SCHEMA_FOR_CATEGORY = mapOf(
+            "RecentlyPlayedMusic" to "show_home_recently_played_music",
+            "HourlyWeatherForecast" to "current_weather",
+            "WeatherAlerts" to "weather_alerts",
+            "PopularFoodVideo" to "popular_food_videos",
+        )
+
+        /** Categoria de um item do UpdateData (data.injectedMetadata.name). */
+        fun categoryOf(item: JsonObject): String? = item.obj("data")?.obj("injectedMetadata")?.str("name")
         const val CARD_TIMEOUT_MS = 20_000L
     }
 }

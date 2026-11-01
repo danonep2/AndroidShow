@@ -36,7 +36,7 @@ import com.androidshow.alexa.show.ShowModeActivity
 import com.androidshow.alexa.voice.wake.WakeWordService
 
 /** Telas do app; [depth] decide o sentido do deslize (empilhar entra pela direita). */
-private enum class Page(val depth: Int) { Home(0), Login(0), Settings(1), Marketplace(1), VoiceActivation(2), History(2) }
+private enum class Page(val depth: Int) { Home(0), Login(0), Settings(1), Marketplace(1), VoiceActivation(2), ShowMode(2), ShowCategories(3), History(2) }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,11 +87,14 @@ class MainActivity : ComponentActivity() {
                                 s, graph.alexa,
                                 onBack = ::pop,
                                 onVoiceActivation = { push(Page.VoiceActivation) },
+                                onShowMode = { push(Page.ShowMode) },
                                 onHistory = { push(Page.History) },
                                 onCopyDiagnostics = ::copyDiagnostics,
                                 onLogout = graph.auth::logout,
                             )
                             Page.VoiceActivation -> VoiceActivationScreen(onBack = ::pop)
+                            Page.ShowMode -> ShowModeSettingsScreen(onBack = ::pop, onCategories = { push(Page.ShowCategories) })
+                            Page.ShowCategories -> ShowCategoriesScreen(onBack = ::pop)
                             Page.History -> HistoryScreen(graph.alexa, onBack = ::pop)
                             Page.Login -> LoginScreen(
                                 marketplace,
