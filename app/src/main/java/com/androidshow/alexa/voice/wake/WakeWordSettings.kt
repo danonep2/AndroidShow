@@ -7,11 +7,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Configuração da palavra de ativação. O nome exibido e o modelo são editáveis: uma palavra
- * própria ("Jerson") é um arquivo .onnx treinado com o openWakeWord e colocado em assets/wakeword.
+ * própria é um arquivo .onnx treinado com o openWakeWord e importado pelo app (ver [CustomWakeWords]).
  */
 data class WakeWordConfig(
     val enabled: Boolean = false,
-    /** Arquivo do modelo em assets/wakeword. */
+    /** Arquivo do modelo em assets/wakeword ou "custom/<arquivo>" para um importado. */
     val model: String = "alexa_v0.1.onnx",
     /** Nome mostrado ao usuário. */
     val label: String = "Alexa",

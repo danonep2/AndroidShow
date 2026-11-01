@@ -27,9 +27,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -64,6 +67,7 @@ import com.androidshow.alexa.ui.ios.IosPage
 import com.androidshow.alexa.ui.ios.IosRow
 import com.androidshow.alexa.ui.ios.IosSwitch
 import com.androidshow.alexa.ui.ios.section
+import com.androidshow.alexa.voice.wake.CustomWakeWord
 import com.androidshow.alexa.voice.wake.OpenWakeWord
 import com.androidshow.alexa.voice.wake.WakeWordConfig
 import com.androidshow.alexa.voice.wake.WakeWordService
@@ -173,6 +177,9 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
     val settings = context.graph.wakeWord
     val config by settings.config.collectAsStateWithLifecycle()
     val models = remember { OpenWakeWord.availableModels(context) }
+    val custom by context.graph.customWakeWords.words.collectAsStateWithLifecycle()
+    var adding by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<CustomWakeWord?>(null) }
 
     fun apply(c: WakeWordConfig) {
         settings.update { c }
@@ -201,18 +208,62 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
                 }
             })
         }
-        section(header = "Palavra de ativação") {
+        section(
+            header = "Palavra de ativação",
+            footer = "Palavras novas são modelos .onnx treinados com o openWakeWord. As adicionadas por você podem ser removidas.",
+        ) {
             models.forEach { m ->
-                IosRow(labelFor(m), subtitle = m, onClick = { apply(config.copy(model = m, label = labelFor(m))) }, trailing = {
+                IosRow(labelFor(m), subtitle = "Padrão do app", onClick = { apply(config.copy(model = m, label = labelFor(m))) }, trailing = {
                     if (m == config.model) Icon(Icons.Filled.Check, null, tint = Ios.Tint)
                 })
             }
+            custom.forEach { w ->
+                // A Amazon só confirma palavras oficiais: palavra própria vai sempre como toque.
+                IosRow(w.label, subtitle = "Adicionada por você", onClick = { apply(config.copy(model = w.model, label = w.label, cloudVerified = false)) }, trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (w.model == config.model) Icon(Icons.Filled.Check, null, tint = Ios.Tint)
+                        IconButton(onClick = { removing = w }) { Icon(Icons.Filled.Delete, "Remover ${w.label}", tint = Ios.Gray) }
+                    }
+                })
+            }
+            IosRow("Adicionar nova palavra", icon = Icons.Filled.Add, iconColor = Palette.Primary, titleColor = Ios.Tint, chevron = false, onClick = { adding = true })
         }
         section(footer = "Envia a palavra junto com o áudio para a Amazon confirmar. Só funciona com palavras oficiais, como “Alexa”.") {
             IosRow("Verificar na nuvem", trailing = {
                 IosSwitch(config.cloudVerified) { apply(config.copy(cloudVerified = it)) }
             })
         }
+    }
+
+    if (adding) {
+        AddWakeWordDialog(
+            onDismiss = { adding = false },
+            onAdded = { w ->
+                adding = false
+                apply(config.copy(model = w.model, label = w.label, cloudVerified = false))
+                Toast.makeText(context, "“${w.label}” adicionada e selecionada", Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
+    removing?.let { w ->
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            containerColor = Ios.Group,
+            title = { Text("Remover “${w.label}”?", color = Ios.Label, fontWeight = FontWeight.SemiBold) },
+            text = { Text("O arquivo do modelo é apagado do aparelho. Se ela estiver em uso, o app volta para a palavra padrão.", color = Ios.SecondaryLabel) },
+            confirmButton = {
+                TextButton(onClick = {
+                    removing = null
+                    val active = w.model == config.model
+                    context.graph.customWakeWords.remove(w.model)
+                    if (active) models.firstOrNull()?.let { m -> apply(config.copy(model = m, label = labelFor(m))) }
+                }) { Text("Remover", color = Ios.Destructive) }
+            },
+            dismissButton = {
+                TextButton(onClick = { removing = null }) { Text("Cancelar", color = Ios.Tint) }
+            },
+        )
     }
 }
 

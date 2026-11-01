@@ -59,7 +59,7 @@ class OpenWakeWord(context: Context, modelFile: String, val xnnpack: Boolean = t
     private var gatedSinceRefresh = 0
     private val mel = session(context, "$DIR/melspectrogram.onnx")
     private val embedding = session(context, "$DIR/embedding_model.onnx")
-    private val classifier = session(context, "$DIR/$modelFile")
+    private val classifier = env.createSession(CustomWakeWords.read(context, modelFile), options)
 
     private val melInput = mel.inputNames.first()
     private val embeddingInput = embedding.inputNames.first()
