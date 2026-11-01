@@ -12,6 +12,7 @@ import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.show.RemoteImages
 import com.androidshow.alexa.show.ShowModeController
 import com.androidshow.alexa.show.ShowSettings
+import com.androidshow.alexa.show.ShowWallpaper
 import com.androidshow.alexa.voice.Microphone
 import com.androidshow.alexa.voice.wake.WakeWordSettings
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,7 @@ class AppGraph(val context: Context) {
     val wakeWord = WakeWordSettings(context)
     val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
     val showSettings = ShowSettings(context)
+    val showWallpaper = ShowWallpaper(context, scope)
     val show = ShowModeController(scope, showSettings).also { show ->
         RemoteImages.http = http
         com.androidshow.alexa.show.apl.Apl.init(context, http)

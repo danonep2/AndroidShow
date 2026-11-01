@@ -50,9 +50,10 @@ fun HomeScreen(
     carousel: Boolean = true,
     clock: Boolean = true,
     weather: JsonObject? = null,
+    micButton: Boolean = true,
 ) {
     if (cards.isEmpty()) {
-        Clock(modifier, weather)
+        Clock(modifier, weather, micButton)
         return
     }
     // null = página do relógio do app, a primeira quando ligada.
@@ -68,7 +69,7 @@ fun HomeScreen(
     Box(modifier.fillMaxSize()) {
         val page = pages[index % pages.size]
         AnimatedContent(page, label = "home", transitionSpec = { fadeIn() togetherWith fadeOut() }) {
-            if (it == null) Clock(weather = weather) else HomeCard(it)
+            if (it == null) Clock(weather = weather, micButton = micButton) else HomeCard(it)
         }
         if (page != null) SmallClock(Modifier.align(Alignment.TopStart).padding(32.dp))
     }
@@ -130,7 +131,7 @@ private fun HomeCard(item: JsonObject) {
  * [weather] é o data.data do cartão HourlyWeatherForecast.
  */
 @Composable
-fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null) {
+fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null, micButton: Boolean = true) {
     val now = rememberMinute()
     val date = Date(now)
     Column(
@@ -141,7 +142,7 @@ fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null) {
         Text(DateFormat.getTimeInstance(DateFormat.SHORT).format(date), fontSize = 120.sp, fontWeight = FontWeight.Light)
         Text(DateFormat.getDateInstance(DateFormat.FULL).format(date), style = MaterialTheme.typography.headlineSmall, color = Color(0xFFB0B8C4))
         weather?.let { ClockWeather(it, Modifier.padding(top = 28.dp)) }
-        Text("Diga \"Alexa\" ou toque no microfone", modifier = Modifier.padding(top = 32.dp), color = Color(0xFF6B7380))
+        Text(if (micButton) "Diga \"Alexa\" ou toque no microfone" else "Diga \"Alexa\"", modifier = Modifier.padding(top = 32.dp), color = Color(0xFF6B7380))
     }
 }
 

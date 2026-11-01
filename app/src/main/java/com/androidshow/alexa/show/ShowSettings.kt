@@ -24,6 +24,8 @@ data class ShowConfig(
     val categories: List<ShowCategory> = listOf(ShowCategory.APP_CLOCK),
     /** Ids de categoria escondidos da home. */
     val hidden: Set<String> = emptySet(),
+    /** false: esconde o botão de microfone; a Alexa fica só na palavra de ativação. */
+    val micButton: Boolean = true,
 )
 
 class ShowSettings(context: Context) {
@@ -38,6 +40,7 @@ class ShowSettings(context: Context) {
             .putBoolean("carousel", c.carousel)
             .putStringSet("categories", c.categories.map { listOf(it.id, it.label, it.description.orEmpty()).joinToString(SEP) }.toSet())
             .putStringSet("hidden", c.hidden)
+            .putBoolean("micButton", c.micButton)
             .apply()
         _config.value = c
     }
@@ -51,6 +54,7 @@ class ShowSettings(context: Context) {
                 if (p.size < 2 || p[0] == ShowCategory.APP_CLOCK.id) null else ShowCategory(p[0], p[1], p.getOrNull(2)?.ifEmpty { null })
             }.sortedBy { it.label },
             hidden = prefs.getStringSet("hidden", null).orEmpty().toSet(),
+            micButton = prefs.getBoolean("micButton", d.micButton),
         )
     }
 

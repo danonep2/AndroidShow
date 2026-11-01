@@ -42,6 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +95,8 @@ class ShowModeActivity : ComponentActivity() {
                     val screen by show.screen.collectAsStateWithLifecycle()
                     val dialog by alexa.dialog.collectAsStateWithLifecycle()
                     val utterance by alexa.utterance.collectAsStateWithLifecycle()
+                    val config by graph.showSettings.config.collectAsStateWithLifecycle()
+                    val wallpaper by graph.showWallpaper.image.collectAsStateWithLifecycle()
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -100,16 +105,19 @@ class ShowModeActivity : ComponentActivity() {
                     ) {
                         Crossfade(screen, label = "screen") { s ->
                             when (s) {
-                                is ShowScreen.Home ->
+                                is ShowScreen.Home -> Box(Modifier.fillMaxSize()) {
+                                    // Tela estática (sem carrossel): a foto escolhida fica atrás do relógio.
+                                    if (!s.carousel) wallpaper?.let { Wallpaper(it) }
                                     if (Apl.ready && s.document != null && s.payload != null) {
                                         Box(Modifier.fillMaxSize()) {
                                             // Atrás do APL: aparece na página 0 injetada, que é transparente.
-                                            if (s.clock) Clock(weather = s.weather)
+                                            if (s.clock) Clock(weather = s.weather, micButton = config.micButton)
                                             AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
                                         }
                                     } else {
-                                        HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather)
+                                        HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather, micButton = config.micButton)
                                     }
+                                }
                                 is ShowScreen.Card -> TemplateCard(s.template)
                                 is ShowScreen.Player -> PlayerCard(s.info)
                                 is ShowScreen.Apl ->
@@ -125,10 +133,12 @@ class ShowModeActivity : ComponentActivity() {
                             Icons.Filled.Home, "Home do modo Show", show::goHome,
                             Modifier.align(Alignment.TopEnd).padding(24.dp), background = BUTTON_BACKGROUND,
                         )
-                        RoundButton(
-                            AppIcons.Mic, "Falar com a Alexa", { toggleMic(alexa, dialog) },
-                            Modifier.align(Alignment.BottomEnd).padding(24.dp), background = BUTTON_BACKGROUND,
-                        )
+                        if (config.micButton) {
+                            RoundButton(
+                                AppIcons.Mic, "Falar com a Alexa", { toggleMic(alexa, dialog) },
+                                Modifier.align(Alignment.BottomEnd).padding(24.dp), background = BUTTON_BACKGROUND,
+                            )
+                        }
                         VoiceOverlay(alexa, dialog, { toggleMic(alexa, dialog) }, Modifier.align(Alignment.BottomCenter))
                         Caption(
                             utterance.takeIf { dialog != AlexaService.Dialog.Idle },
@@ -176,6 +186,15 @@ class ShowModeActivity : ComponentActivity() {
         } else {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
+    }
+}
+
+/** Papel de parede da tela estática, escurecido para o relógio continuar legível. */
+@Composable
+private fun Wallpaper(image: ImageBitmap) {
+    Box(Modifier.fillMaxSize()) {
+        Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
     }
 }
 

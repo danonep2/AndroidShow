@@ -8,8 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
@@ -32,11 +36,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +67,7 @@ import com.androidshow.alexa.ui.ios.section
 import com.androidshow.alexa.voice.wake.OpenWakeWord
 import com.androidshow.alexa.voice.wake.WakeWordConfig
 import com.androidshow.alexa.voice.wake.WakeWordService
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -211,9 +219,19 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
 /** Ajustes da home do modo Show. */
 @Composable
 fun ShowModeSettingsScreen(onBack: () -> Unit, onCategories: () -> Unit) {
-    val settings = LocalContext.current.graph.showSettings
+    val context = LocalContext.current
+    val settings = context.graph.showSettings
     val config by settings.config.collectAsStateWithLifecycle()
     val shown = config.categories.count { it.id !in config.hidden }
+    val wallpaper = context.graph.showWallpaper
+    val image by wallpaper.image.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    // O seletor de fotos do sistema não pede permissão de galeria.
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) scope.launch {
+            if (!wallpaper.set(uri)) Toast.makeText(context, "Não deu para abrir essa foto", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     IosPage("Modo Show", back = "Ajustes", onBack = onBack) {
         section(footer = "Desativado, a home mostra só o primeiro cartão que chega ao abrir o modo Show, sem girar.") {
@@ -227,6 +245,28 @@ fun ShowModeSettingsScreen(onBack: () -> Unit, onCategories: () -> Unit) {
                 value = if (config.categories.isEmpty()) null else "$shown de ${config.categories.size}",
                 onClick = onCategories,
             )
+        }
+        section(footer = "Desativado, o botão some do canto da tela e a Alexa é acionada só pela palavra de ativação.") {
+            IosRow("Botão do microfone", trailing = {
+                IosSwitch(config.micButton) { on -> settings.update { it.copy(micButton = on) } }
+            })
+        }
+        section(header = "Tela estática", footer = "A foto fica atrás do relógio quando o carrossel está desativado.") {
+            IosRow(
+                "Papel de parede", value = if (image == null) "Nenhum" else null,
+                onClick = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                trailing = image?.let { img ->
+                    {
+                        Image(
+                            img, contentDescription = null, contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(56.dp, 32.dp).clip(RoundedCornerShape(6.dp)),
+                        )
+                    }
+                },
+            )
+            if (image != null) {
+                IosRow("Remover papel de parede", titleColor = Ios.Destructive, centered = true, onClick = wallpaper::clear)
+            }
         }
     }
 }
