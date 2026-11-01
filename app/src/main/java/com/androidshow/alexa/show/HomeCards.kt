@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,10 +35,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.androidshow.alexa.net.obj
 import com.androidshow.alexa.net.str
-import kotlinx.coroutines.delay
-import kotlinx.serialization.json.JsonObject
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Home do modo Show: cartões da nuvem (clima, música, receitas...) girando a cada 10 s, com o
@@ -51,9 +53,10 @@ fun HomeScreen(
     clock: Boolean = true,
     weather: JsonObject? = null,
     micButton: Boolean = true,
+    wallpaper: ImageBitmap? = null,
 ) {
     if (cards.isEmpty()) {
-        Clock(modifier, weather, micButton)
+        Clock(modifier, weather, micButton, wallpaper)
         return
     }
     // null = página do relógio do app, a primeira quando ligada.
@@ -69,7 +72,7 @@ fun HomeScreen(
     Box(modifier.fillMaxSize()) {
         val page = pages[index % pages.size]
         AnimatedContent(page, label = "home", transitionSpec = { fadeIn() togetherWith fadeOut() }) {
-            if (it == null) Clock(weather = weather, micButton = micButton) else HomeCard(it)
+            if (it == null) Clock(weather = weather, micButton = micButton, wallpaper = wallpaper) else HomeCard(it)
         }
         if (page != null) SmallClock(Modifier.align(Alignment.TopStart).padding(32.dp))
     }
@@ -128,12 +131,17 @@ private fun HomeCard(item: JsonObject) {
 /**
  * Tela estática do app: hora, data e, quando a nuvem já mandou a previsão, o clima atual no
  * desenho do primeiro cartão nativo de clima (temperatura, máxima/mínima, resumo e cidade).
- * [weather] é o data.data do cartão HourlyWeatherForecast.
+ * [weather] é o data.data do cartão HourlyWeatherForecast. Com [wallpaper], a foto escolhida nos
+ * Ajustes fica de fundo, escurecida para o texto continuar legível.
  */
 @Composable
-fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null, micButton: Boolean = true) {
+fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null, micButton: Boolean = true, wallpaper: ImageBitmap? = null) {
     val now = rememberMinute()
     val date = Date(now)
+    if (wallpaper != null) {
+        Image(wallpaper, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier.fillMaxSize())
+        Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+    }
     Column(
         modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,

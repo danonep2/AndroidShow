@@ -42,9 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -106,16 +103,14 @@ class ShowModeActivity : ComponentActivity() {
                         Crossfade(screen, label = "screen") { s ->
                             when (s) {
                                 is ShowScreen.Home -> Box(Modifier.fillMaxSize()) {
-                                    // Tela estática (sem carrossel): a foto escolhida fica atrás do relógio.
-                                    if (!s.carousel) wallpaper?.let { Wallpaper(it) }
                                     if (Apl.ready && s.document != null && s.payload != null) {
                                         Box(Modifier.fillMaxSize()) {
                                             // Atrás do APL: aparece na página 0 injetada, que é transparente.
-                                            if (s.clock) Clock(weather = s.weather, micButton = config.micButton)
+                                            if (s.clock) Clock(weather = s.weather, micButton = config.micButton, wallpaper = wallpaper)
                                             AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
                                         }
                                     } else {
-                                        HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather, micButton = config.micButton)
+                                        HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather, micButton = config.micButton, wallpaper = wallpaper)
                                     }
                                 }
                                 is ShowScreen.Card -> TemplateCard(s.template)
@@ -141,7 +136,7 @@ class ShowModeActivity : ComponentActivity() {
                         }
                         VoiceOverlay(alexa, dialog, { toggleMic(alexa, dialog) }, Modifier.align(Alignment.BottomCenter))
                         Caption(
-                            utterance.takeIf { dialog != AlexaService.Dialog.Idle },
+                            utterance.takeIf { config.transcription && dialog != AlexaService.Dialog.Idle },
                             Modifier.align(Alignment.BottomCenter).padding(bottom = ORB_RADIUS_SHOW + 28.dp),
                         )
                     }
@@ -186,15 +181,6 @@ class ShowModeActivity : ComponentActivity() {
         } else {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
-    }
-}
-
-/** Papel de parede da tela estática, escurecido para o relógio continuar legível. */
-@Composable
-private fun Wallpaper(image: ImageBitmap) {
-    Box(Modifier.fillMaxSize()) {
-        Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
     }
 }
 

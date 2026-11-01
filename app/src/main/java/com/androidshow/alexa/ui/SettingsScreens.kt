@@ -251,7 +251,12 @@ fun ShowModeSettingsScreen(onBack: () -> Unit, onCategories: () -> Unit) {
                 IosSwitch(config.micButton) { on -> settings.update { it.copy(micButton = on) } }
             })
         }
-        section(header = "Tela estática", footer = "A foto fica atrás do relógio quando o carrossel está desativado.") {
+        section(footer = "Mostra na tela a frase que a Alexa entendeu enquanto ela responde.") {
+            IosRow("Transcrever pedidos", trailing = {
+                IosSwitch(config.transcription) { on -> settings.update { it.copy(transcription = on) } }
+            })
+        }
+        section(header = "Relógio", footer = "A foto fica de fundo na tela do relógio, com o carrossel ligado ou não.") {
             IosRow(
                 "Papel de parede", value = if (image == null) "Nenhum" else null,
                 onClick = { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },

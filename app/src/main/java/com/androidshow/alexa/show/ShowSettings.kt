@@ -26,6 +26,8 @@ data class ShowConfig(
     val hidden: Set<String> = emptySet(),
     /** false: esconde o botão de microfone; a Alexa fica só na palavra de ativação. */
     val micButton: Boolean = true,
+    /** true: mostra a frase que a Alexa entendeu enquanto responde. */
+    val transcription: Boolean = true,
 )
 
 class ShowSettings(context: Context) {
@@ -41,6 +43,7 @@ class ShowSettings(context: Context) {
             .putStringSet("categories", c.categories.map { listOf(it.id, it.label, it.description.orEmpty()).joinToString(SEP) }.toSet())
             .putStringSet("hidden", c.hidden)
             .putBoolean("micButton", c.micButton)
+            .putBoolean("transcription", c.transcription)
             .apply()
         _config.value = c
     }
@@ -55,6 +58,7 @@ class ShowSettings(context: Context) {
             }.sortedBy { it.label },
             hidden = prefs.getStringSet("hidden", null).orEmpty().toSet(),
             micButton = prefs.getBoolean("micButton", d.micButton),
+            transcription = prefs.getBoolean("transcription", d.transcription),
         )
     }
 
