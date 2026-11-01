@@ -12,6 +12,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,16 +24,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +53,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.androidshow.alexa.AlexaService
+import com.androidshow.alexa.avs.AvsClient
+import com.androidshow.alexa.ui.AppIcons
+import com.androidshow.alexa.ui.Palette
+import com.androidshow.alexa.ui.RoundButton
+import com.androidshow.alexa.ui.VoiceOrb
+import com.androidshow.alexa.ui.ios.Ios
 import com.androidshow.alexa.graph
 import com.androidshow.alexa.show.apl.Apl
 import com.androidshow.alexa.show.apl.AplDocument
@@ -80,7 +87,7 @@ class ShowModeActivity : ComponentActivity() {
         val show = graph.show
         val alexa = graph.alexa
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
+            MaterialTheme(colorScheme = Palette.colorScheme.copy(background = Color.Black, surface = Color.Black)) {
                 CompositionLocalProvider(LocalContentColor provides Color.White) {
                     val screen by show.screen.collectAsStateWithLifecycle()
                     val dialog by alexa.dialog.collectAsStateWithLifecycle()
@@ -110,20 +117,19 @@ class ShowModeActivity : ComponentActivity() {
                             }
                         }
                         // Volta à home do próprio modo Show. Fica no canto oposto ao do microfone.
-                        SmallFloatingActionButton(
-                            onClick = show::goHome,
-                            shape = CircleShape,
-                            containerColor = Color(0x80000000),
-                            contentColor = Color.White,
-                            modifier = Modifier.align(Alignment.TopEnd).padding(24.dp),
-                        ) { Icon(Icons.Filled.Home, contentDescription = "Home do modo Show") }
-                        FloatingActionButton(
-                            onClick = { toggleMic(alexa, dialog) },
-                            shape = CircleShape,
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
-                        ) { Text(if (dialog == AlexaService.Dialog.Listening) "■" else "🎤") }
-                        Caption(utterance.takeIf { dialog != AlexaService.Dialog.Idle }, Modifier.align(Alignment.BottomCenter))
-                        DialogBar(dialog, Modifier.align(Alignment.BottomCenter))
+                        RoundButton(
+                            Icons.Filled.Home, "Home do modo Show", show::goHome,
+                            Modifier.align(Alignment.TopEnd).padding(24.dp), background = BUTTON_BACKGROUND,
+                        )
+                        RoundButton(
+                            AppIcons.Mic, "Falar com a Alexa", { toggleMic(alexa, dialog) },
+                            Modifier.align(Alignment.BottomEnd).padding(24.dp), background = BUTTON_BACKGROUND,
+                        )
+                        VoiceOverlay(alexa, dialog, { toggleMic(alexa, dialog) }, Modifier.align(Alignment.BottomCenter))
+                        Caption(
+                            utterance.takeIf { dialog != AlexaService.Dialog.Idle },
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = ORB_RADIUS_SHOW + 28.dp),
+                        )
                     }
                 }
             }
@@ -169,30 +175,52 @@ class ShowModeActivity : ComponentActivity() {
     }
 }
 
-/** Barra de luz no rodapé, como o anel do Echo: azul ouvindo, ciano pensando/falando. */
+private val ORB_RADIUS_SHOW = 72.dp
+private val BUTTON_BACKGROUND = Color(0x80000000)
+
+/**
+ * O mesmo círculo da tela inicial, fora da tela em repouso. Ao acionar a Alexa ele sobe pelo
+ * centro da base e fica só a metade de cima à mostra, com a onda atrás.
+ */
 @Composable
-private fun DialogBar(dialog: AlexaService.Dialog, modifier: Modifier) {
-    val colors = when (dialog) {
-        AlexaService.Dialog.Listening -> listOf(Color(0xFF0050FF), Color(0xFF00CAFF), Color(0xFF0050FF))
-        AlexaService.Dialog.Thinking, AlexaService.Dialog.Speaking -> listOf(Color(0xFF00CAFF), Color(0xFF00E5FF), Color(0xFF00CAFF))
-        AlexaService.Dialog.Idle -> null
-    }
-    AnimatedVisibility(colors != null, modifier, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxWidth().height(8.dp).background(Brush.horizontalGradient(colors ?: listOf(Color.Transparent, Color.Transparent))))
+private fun VoiceOverlay(alexa: AlexaService, dialog: AlexaService.Dialog, onTap: () -> Unit, modifier: Modifier) {
+    val connection by alexa.connection.collectAsStateWithLifecycle()
+    val micLevel by alexa.micLevel.collectAsStateWithLifecycle()
+    val speechLevel by alexa.speechLevel.collectAsStateWithLifecycle()
+    AnimatedVisibility(
+        dialog != AlexaService.Dialog.Idle, modifier,
+        enter = slideInVertically { it / 2 } + fadeIn(),
+        exit = slideOutVertically { it / 2 } + fadeOut(),
+    ) {
+        Box(Modifier.fillMaxWidth().height(ORB_RADIUS_SHOW * 4)) {
+            // Escurece o conteúdo atrás para o círculo e a onda se destacarem.
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
+            VoiceOrb(
+                dialog, micLevel, speechLevel, connection == AvsClient.State.Connected,
+                Modifier.matchParentSize(), radius = ORB_RADIUS_SHOW, centerY = 1f,
+            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .size(ORB_RADIUS_SHOW * 2, ORB_RADIUS_SHOW)
+                    .clip(RoundedCornerShape(topStart = ORB_RADIUS_SHOW, topEnd = ORB_RADIUS_SHOW))
+                    .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onTap),
+            )
+        }
     }
 }
 
-/** Legenda com a frase que a Alexa entendeu, como no Echo Show. */
+/** Legenda com a frase que a Alexa entendeu, logo acima do círculo. */
 @Composable
 private fun Caption(text: String?, modifier: Modifier) {
-    AnimatedVisibility(text != null, modifier.padding(bottom = 32.dp), enter = fadeIn(), exit = fadeOut()) {
+    AnimatedVisibility(text != null, modifier, enter = fadeIn(), exit = fadeOut()) {
         Text(
             "“${text.orEmpty()}”",
-            style = MaterialTheme.typography.headlineSmall,
-            color = Color(0xFFE6EDF5),
+            color = Ios.Label,
+            fontSize = 22.sp,
             modifier = Modifier
-                .background(Color(0xCC000000), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+                .background(Ios.Group.copy(alpha = 0.92f), RoundedCornerShape(18.dp))
+                .padding(horizontal = 22.dp, vertical = 12.dp),
         )
     }
 }

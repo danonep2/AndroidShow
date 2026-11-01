@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import com.androidshow.alexa.AlexaService.Dialog
 import kotlin.math.PI
 import kotlin.math.min
@@ -37,6 +39,10 @@ fun VoiceOrb(
     speechLevel: Float,
     connected: Boolean,
     modifier: Modifier = Modifier,
+    /** Raio do círculo; sem valor, [ORB_RADIUS] do menor lado da área. */
+    radius: Dp = Dp.Unspecified,
+    /** Altura do centro (0 = topo, 1 = base). Em 1 só a metade de cima aparece. */
+    centerY: Float = 0.5f,
 ) {
     val voice by animateFloatAsState(if (dialog == Dialog.Listening) micLevel else 0f, tween(140), label = "voz")
     val speech by animateFloatAsState(if (dialog == Dialog.Speaking) speechLevel else 0f, tween(70), label = "fala")
@@ -49,8 +55,10 @@ fun VoiceOrb(
     }
 
     Canvas(modifier) {
-        drawWaves(time, voice, listening, presence)
-        drawOrb(time, speech, listening, thinking, presence)
+        val base = if (radius.isSpecified) radius.toPx() else min(size.width, size.height) * ORB_RADIUS
+        val center = Offset(size.width / 2, size.height * centerY)
+        drawWaves(time, voice, listening, presence, base, center.y)
+        drawOrb(time, speech, listening, thinking, presence, base, center)
     }
 }
 
@@ -62,10 +70,9 @@ private val waveLayers = listOf(
     WaveLayer(Palette.Accent, cycles = 3.0f, speed = 1.6f, phase = 3.4f, weight = 0.6f),
 )
 
-private fun DrawScope.drawWaves(time: Float, voice: Float, listening: Float, presence: Float) {
-    val cy = size.height / 2
-    // Pelo menor lado: em retrato a altura inteira deixaria a onda exagerada.
-    val amplitude = min(size.width, size.height) * (0.07f + 0.45f * voice)
+private fun DrawScope.drawWaves(time: Float, voice: Float, listening: Float, presence: Float, base: Float, cy: Float) {
+    // Relativa ao raio do círculo, e não à tela: em retrato a altura inteira deixaria a onda exagerada.
+    val amplitude = base * (0.5f + 3.2f * voice)
     val speedUp = 1f + 1.5f * listening
     val glow = Stroke(10.dp.toPx(), cap = StrokeCap.Round)
     val line = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round)
@@ -85,8 +92,7 @@ private fun DrawScope.drawWaves(time: Float, voice: Float, listening: Float, pre
     }
 }
 
-private fun DrawScope.drawOrb(time: Float, speech: Float, listening: Float, thinking: Float, presence: Float) {
-    val base = min(size.width, size.height) * ORB_RADIUS
+private fun DrawScope.drawOrb(time: Float, speech: Float, listening: Float, thinking: Float, presence: Float, base: Float, center: Offset) {
     val breathe = 1f + 0.025f * sin(time * 1.6f) * (1f - listening)
     val radius = base * breathe * (1f + 0.08f * listening + 0.3f * speech)
 
@@ -97,6 +103,7 @@ private fun DrawScope.drawOrb(time: Float, speech: Float, listening: Float, thin
     drawCircle(
         Brush.radialGradient(listOf(Palette.bright(haloColor, 0.15f).copy(alpha = haloAlpha), Color.Transparent), center, haloRadius),
         haloRadius,
+        center,
     )
 
     drawCircle(
@@ -106,16 +113,18 @@ private fun DrawScope.drawOrb(time: Float, speech: Float, listening: Float, thin
             radius * 1.5f,
         ),
         radius,
+        center,
     )
 
     if (listening > 0f) {
-        drawCircle(Palette.bright(Palette.Secondary, 0.45f).copy(alpha = 0.8f * listening), radius * 1.12f, style = Stroke(2.dp.toPx()))
+        drawCircle(Palette.bright(Palette.Secondary, 0.45f).copy(alpha = 0.8f * listening), radius * 1.12f, center, style = Stroke(2.dp.toPx()))
     }
     if (thinking > 0f) {
-        rotate(time * 220f) {
+        rotate(time * 220f, center) {
             drawCircle(
                 Brush.sweepGradient(listOf(Palette.Secondary, Palette.bright(Palette.Accent, 0.3f), Palette.bright(Palette.Primary, 0.4f), Palette.Secondary), center),
                 radius * 1.1f,
+                center,
                 alpha = thinking,
                 style = Stroke(radius * 0.07f, cap = StrokeCap.Round),
             )

@@ -64,17 +64,23 @@ fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit, onShowMode: () -> Un
                 },
         )
         Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeButton(AppIcons.Screen, "Modo Show", onShowMode)
-            HomeButton(Icons.Filled.Settings, "Ajustes", onSettings)
+            RoundButton(AppIcons.Screen, "Modo Show", onShowMode)
+            RoundButton(Icons.Filled.Settings, "Ajustes", onSettings)
         }
     }
 }
 
-/** Botão redondo translúcido, discreto sobre o fundo escuro. */
+/** Botão redondo translúcido, discreto sobre o fundo escuro (tela inicial e modo Show). */
 @Composable
-private fun HomeButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+fun RoundButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    background: Color = Color.White.copy(alpha = 0.08f),
+) {
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)).clickable(onClick = onClick),
+        modifier.size(44.dp).clip(CircleShape).background(background).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = description, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(22.dp))
