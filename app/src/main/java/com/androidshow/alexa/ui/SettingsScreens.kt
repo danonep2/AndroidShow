@@ -238,23 +238,16 @@ fun ShowCategoriesScreen(onBack: () -> Unit) {
     val config by settings.config.collectAsStateWithLifecycle()
 
     IosPage("Telas listadas", back = "Modo Show", onBack = onBack) {
-        if (config.categories.isEmpty()) {
-            item {
-                Text(
-                    "Abra o modo Show uma vez para a Alexa enviar as telas disponíveis.",
-                    color = Ios.SecondaryLabel, fontSize = 15.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 24.dp, end = 24.dp),
-                )
-            }
-        } else {
-            section(footer = "As telas vêm da sua conta Amazon; novas aparecem aqui quando a Alexa enviar.") {
-                config.categories.forEach { c ->
-                    IosRow(c.label, subtitle = c.description, trailing = {
-                        IosSwitch(c.id !in config.hidden) { on ->
-                            settings.update { it.copy(hidden = if (on) it.hidden - c.id else it.hidden + c.id) }
-                        }
-                    })
-                }
+        section(
+            footer = if (config.categories.size == 1) "Abra o modo Show uma vez para a Alexa enviar as outras telas disponíveis."
+            else "O relógio é do próprio app; as outras telas vêm da sua conta Amazon e novas aparecem aqui quando a Alexa enviar.",
+        ) {
+            config.categories.forEach { c ->
+                IosRow(c.label, subtitle = c.description, trailing = {
+                    IosSwitch(c.id !in config.hidden) { on ->
+                        settings.update { it.copy(hidden = if (on) it.hidden - c.id else it.hidden + c.id) }
+                    }
+                })
             }
         }
     }

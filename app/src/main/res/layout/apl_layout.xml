@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Viewport APL do modo Show: perfil HUB (Echo Show) e tema escuro, como anunciado nas capabilities. -->
+<!-- Viewport APL do modo Show: perfil HUB (Echo Show) e tema escuro, como anunciado nas capabilities.
+     Fundo transparente: o modo Show já é preto e o relógio do app fica atrás da home APL. -->
 <com.amazon.apl.android.APLLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     app:aplTheme="dark"
-    app:defaultBackground="@android:color/black"
+    app:defaultBackground="@android:color/transparent"
     app:mode="hub" />

@@ -6,14 +6,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Uma categoria de cartão da home (injectedMetadata.name do UpdateData, ex.: "WeatherAlerts"). */
-data class ShowCategory(val id: String, val label: String, val description: String? = null)
+data class ShowCategory(val id: String, val label: String, val description: String? = null) {
+    companion object {
+        /** Tela do próprio app (hora e data), injetada como primeira página da home. */
+        val APP_CLOCK = ShowCategory("AppClock", "Relógio", "Hora e data, tela do próprio app")
+    }
+}
 
 /** Configuração do modo Show. */
 data class ShowConfig(
     /** true: a home gira pelos cartões da nuvem; false: fica parada no primeiro. */
     val carousel: Boolean = true,
-    /** Categorias já vistas na home, para listar nos Ajustes mesmo antes de abrir o modo Show. */
-    val categories: List<ShowCategory> = emptyList(),
+    /**
+     * Categorias para listar nos Ajustes: o relógio do app e as já vistas na home (ficam salvas
+     * para aparecer mesmo antes de abrir o modo Show).
+     */
+    val categories: List<ShowCategory> = listOf(ShowCategory.APP_CLOCK),
     /** Ids de categoria escondidos da home. */
     val hidden: Set<String> = emptySet(),
 )
@@ -38,9 +46,9 @@ class ShowSettings(context: Context) {
         val d = ShowConfig()
         return ShowConfig(
             carousel = prefs.getBoolean("carousel", d.carousel),
-            categories = prefs.getStringSet("categories", null).orEmpty().mapNotNull { s ->
+            categories = listOf(ShowCategory.APP_CLOCK) + prefs.getStringSet("categories", null).orEmpty().mapNotNull { s ->
                 val p = s.split(SEP)
-                if (p.size < 2) null else ShowCategory(p[0], p[1], p.getOrNull(2)?.ifEmpty { null })
+                if (p.size < 2 || p[0] == ShowCategory.APP_CLOCK.id) null else ShowCategory(p[0], p[1], p.getOrNull(2)?.ifEmpty { null })
             }.sortedBy { it.label },
             hidden = prefs.getStringSet("hidden", null).orEmpty().toSet(),
         )

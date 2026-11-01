@@ -44,24 +44,33 @@ import java.util.Date
  * até o documento APL da home (SPA) ser desenhado pelo renderizador APL.
  */
 @Composable
-fun HomeScreen(cards: List<JsonObject>, modifier: Modifier = Modifier, carousel: Boolean = true) {
+fun HomeScreen(
+    cards: List<JsonObject>,
+    modifier: Modifier = Modifier,
+    carousel: Boolean = true,
+    clock: Boolean = true,
+    weather: JsonObject? = null,
+) {
     if (cards.isEmpty()) {
-        Clock(modifier)
+        Clock(modifier, weather)
         return
     }
+    // null = página do relógio do app, a primeira quando ligada.
+    val pages: List<JsonObject?> = if (clock) listOf(null) + cards else cards
     var index by remember { mutableIntStateOf(0) }
-    LaunchedEffect(cards.size, carousel) {
+    LaunchedEffect(pages.size, carousel) {
         if (!carousel) index = 0
         while (carousel) {
             delay(ROTATE_MS)
-            index = (index + 1) % cards.size
+            index = (index + 1) % pages.size
         }
     }
     Box(modifier.fillMaxSize()) {
-        AnimatedContent(cards[index % cards.size], label = "home", transitionSpec = { fadeIn() togetherWith fadeOut() }) {
-            HomeCard(it)
+        val page = pages[index % pages.size]
+        AnimatedContent(page, label = "home", transitionSpec = { fadeIn() togetherWith fadeOut() }) {
+            if (it == null) Clock(weather = weather) else HomeCard(it)
         }
-        SmallClock(Modifier.align(Alignment.TopStart).padding(32.dp))
+        if (page != null) SmallClock(Modifier.align(Alignment.TopStart).padding(32.dp))
     }
 }
 
@@ -115,8 +124,13 @@ private fun HomeCard(item: JsonObject) {
     }
 }
 
+/**
+ * Tela estática do app: hora, data e, quando a nuvem já mandou a previsão, o clima atual no
+ * desenho do primeiro cartão nativo de clima (temperatura, máxima/mínima, resumo e cidade).
+ * [weather] é o data.data do cartão HourlyWeatherForecast.
+ */
 @Composable
-fun Clock(modifier: Modifier = Modifier) {
+fun Clock(modifier: Modifier = Modifier, weather: JsonObject? = null) {
     val now = rememberMinute()
     val date = Date(now)
     Column(
@@ -126,7 +140,24 @@ fun Clock(modifier: Modifier = Modifier) {
     ) {
         Text(DateFormat.getTimeInstance(DateFormat.SHORT).format(date), fontSize = 120.sp, fontWeight = FontWeight.Light)
         Text(DateFormat.getDateInstance(DateFormat.FULL).format(date), style = MaterialTheme.typography.headlineSmall, color = Color(0xFFB0B8C4))
+        weather?.let { ClockWeather(it, Modifier.padding(top = 28.dp)) }
         Text("Diga \"Alexa\" ou toque no microfone", modifier = Modifier.padding(top = 32.dp), color = Color(0xFF6B7380))
+    }
+}
+
+@Composable
+private fun ClockWeather(d: JsonObject, modifier: Modifier) {
+    val temperature = d.str("currentTemperature") ?: return
+    val highLow = listOfNotNull(d.str("highTemperature"), d.str("lowTemperature"))
+    val details = listOfNotNull(d.str("weatherSummary"), d.str("cardTitle"))
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Text(temperature, fontSize = 56.sp, fontWeight = FontWeight.Light)
+        if (highLow.isNotEmpty()) Column { highLow.forEach { Text(it, style = MaterialTheme.typography.titleMedium, color = Color(0xFFB0B8C4)) } }
+        if (details.isNotEmpty()) Column {
+            details.forEachIndexed { i, t ->
+                Text(t, style = if (i == 0) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium, color = if (i == 0) Color.White else Color(0xFFB0B8C4))
+            }
+        }
     }
 }
 

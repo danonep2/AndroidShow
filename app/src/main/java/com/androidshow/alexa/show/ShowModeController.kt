@@ -36,6 +36,10 @@ sealed interface ShowScreen {
         val generation: Int = 0,
         /** false: fica no primeiro cartão, sem girar (Ajustes → Modo Show → Ativar Carrossel). */
         val carousel: Boolean = true,
+        /** Relógio do app como primeira página (categoria [ShowCategory.APP_CLOCK]). */
+        val clock: Boolean = true,
+        /** Clima atual para a tela estática: data.data do cartão de previsão, se já chegou. */
+        val weather: JsonObject? = null,
     ) : ShowScreen
 
     /** Cartão TemplateRuntime.RenderTemplate (BodyTemplate1/2, ListTemplate1, WeatherTemplate...). */
@@ -133,12 +137,12 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
     private fun rememberCategories() {
         val seen = homeItems.values.mapNotNull(::categoryOf).distinct()
         settings.update { c ->
-            val known = c.categories.associateBy { it.id }.toMutableMap()
+            val known = c.categories.filter { it != ShowCategory.APP_CLOCK }.associateBy { it.id }.toMutableMap()
             for (id in seen) {
                 val schema = SCHEMA_FOR_CATEGORY[id]?.let(homeSchemas::get)
                 known[id] = ShowCategory(id, schema?.label ?: known[id]?.label ?: id, schema?.description ?: known[id]?.description)
             }
-            c.copy(categories = known.values.sortedBy { it.label })
+            c.copy(categories = listOf(ShowCategory.APP_CLOCK) + known.values.sortedBy { it.label })
         }
     }
 
@@ -159,8 +163,21 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
             }))
         }.toString().replace(WAKE_WORD_PLACEHOLDER, "Alexa") else null
         val carousel = settings.config.value.carousel
-        val document = doc?.obj("document")?.let { if (carousel) it else withoutPaging(it) }
-        return ShowScreen.Home(sorted, document?.toString(), payload, homeGeneration, carousel)
+        val clock = ShowCategory.APP_CLOCK.id !in hidden
+        val document = doc?.obj("document")
+            ?.let { if (clock) withClockPage(it) else it }
+            ?.let { if (carousel) it else withoutPaging(it) }
+        val weather = homeItems.values.firstOrNull { categoryOf(it) == WEATHER_CATEGORY }?.obj("data")?.obj("data")
+        return ShowScreen.Home(sorted, document?.toString(), payload, homeGeneration, carousel, clock, weather)
+    }
+
+    /** Põe o relógio do app como primeira página do pager da home. */
+    private fun withClockPage(document: JsonObject): JsonObject {
+        val mainTemplate = document.obj("mainTemplate") ?: return document
+        val page = Http.json.parseToJsonElement(CLOCK_PAGE)
+        return JsonObject(document + ("mainTemplate" to mapPager(mainTemplate) { pager ->
+            JsonObject(pager + ("items" to JsonArray(listOf(page) + (pager["items"] as? JsonArray).orEmpty())))
+        }))
     }
 
     /**
@@ -176,17 +193,20 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
                     putJsonObject("command") { put("type", "Idle") }
                 })))
             }
-            if (mainTemplate != null) put("mainTemplate", lockPager(mainTemplate) as JsonObject)
+            if (mainTemplate != null) put("mainTemplate", mapPager(mainTemplate) {
+                JsonObject(it + ("navigation" to kotlinx.serialization.json.JsonPrimitive("none")))
+            })
         })
     }
 
-    /** Põe navigation "none" no pager principal da home (mmHomeMainPager). */
-    private fun lockPager(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
-        is JsonObject ->
-            if (e.str("id") == HOME_PAGER_ID) JsonObject(e + ("navigation" to kotlinx.serialization.json.JsonPrimitive("none")))
-            else JsonObject(e.mapValues { lockPager(it.value) })
-        is JsonArray -> JsonArray(e.map(::lockPager))
-        else -> e
+    /** Aplica [f] ao pager principal da home (mmHomeMainPager), onde quer que ele esteja. */
+    private fun mapPager(template: JsonObject, f: (JsonObject) -> JsonObject): JsonObject {
+        fun walk(e: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement = when (e) {
+            is JsonObject -> if (e.str("id") == HOME_PAGER_ID) f(e) else JsonObject(e.mapValues { walk(it.value) })
+            is JsonArray -> JsonArray(e.map(::walk))
+            else -> e
+        }
+        return walk(template) as JsonObject
     }
 
     /**
@@ -357,6 +377,16 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
         const val WAKE_WORD_PLACEHOLDER = "{WakeWord}"
         const val WINDOW_ID = "app_window"
         const val HOME_PAGER_ID = "mmHomeMainPager"
+        /** Cartão de onde a tela estática tira o clima atual. */
+        const val WEATHER_CATEGORY = "HourlyWeatherForecast"
+
+        /**
+         * Página do relógio do app: um quadro transparente no pager, com o [Clock] nativo atrás da
+         * view APL; as outras páginas têm fundo próprio e o cobrem. Textos no documento não servem:
+         * o viewhost 2024.3 desenhou todos com o tamanho e a cor do primeiro [Observado]. Saber a
+         * página pelo SendEvent do pager também não: ele nunca chega ao app [Observado].
+         */
+        const val CLOCK_PAGE = """{"type": "Frame", "width": "100vw", "height": "100vh"}"""
 
         /**
          * Categoria do cartão → opção do UpdateSettingSchemas que a liga e desliga. [Inferido] O

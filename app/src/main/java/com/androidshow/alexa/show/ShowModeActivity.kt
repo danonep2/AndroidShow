@@ -102,9 +102,13 @@ class ShowModeActivity : ComponentActivity() {
                             when (s) {
                                 is ShowScreen.Home ->
                                     if (Apl.ready && s.document != null && s.payload != null) {
-                                        AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
+                                        Box(Modifier.fillMaxSize()) {
+                                            // Atrás do APL: aparece na página 0 injetada, que é transparente.
+                                            if (s.clock) Clock(weather = s.weather)
+                                            AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
+                                        }
                                     } else {
-                                        HomeScreen(s.cards, carousel = s.carousel)
+                                        HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather)
                                     }
                                 is ShowScreen.Card -> TemplateCard(s.template)
                                 is ShowScreen.Player -> PlayerCard(s.info)
