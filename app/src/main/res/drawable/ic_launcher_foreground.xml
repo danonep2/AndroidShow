@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Círculo roxo com aura suave, como o da tela inicial (ui/VoiceOrb.kt). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M54,6a48,48 0 1,1 0,96 a48,48 0 1,1 0,-96z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="54" android:gradientRadius="48">
+                <item android:offset="0" android:color="#998A6FD0" />
+                <item android:offset="0.55" android:color="#425A3CA8" />
+                <item android:offset="1" android:color="#005A3CA8" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M54,25a29,29 0 1,1 0,58 a29,29 0 1,1 0,-58z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="43.6" android:centerY="43.6" android:gradientRadius="43.5">
+                <item android:offset="0" android:color="#FF6B549F" />
+                <item android:offset="0.5" android:color="#FF32127A" />
+                <item android:offset="1" android:color="#FF1C2079" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

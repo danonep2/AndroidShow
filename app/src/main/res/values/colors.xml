@@ -1,0 +1,4 @@
+<resources>
+    <!-- Fundo do ícone e da splash: azul quase preto, puxado da cor secundária. -->
+    <color name="brand_background">#FF060A1C</color>
+</resources>

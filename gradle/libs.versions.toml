@@ -16,6 +16,7 @@ guava = "27.0.1-android"
 autoValue = "1.7"
 javaWebsocket = "1.5.2"
 appcompat = "1.2.0"
+splashscreen = "1.0.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -39,6 +40,7 @@ guava = { module = "com.google.guava:guava", version.ref = "guava" }
 auto-value-annotations = { module = "com.google.auto.value:auto-value-annotations", version.ref = "autoValue" }
 java-websocket = { module = "org.java-websocket:Java-WebSocket", version.ref = "javaWebsocket" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 
 [plugins]

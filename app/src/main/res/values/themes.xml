@@ -7,4 +7,10 @@
     <style name="Theme.AndroidShow.Fullscreen">
         <item name="android:windowFullscreen">true</item>
     </style>
+    <!-- Splash da abertura (core-splashscreen): o desenho do ícone sobre o fundo quase preto. -->
+    <style name="Theme.AndroidShow.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.AndroidShow</item>
+    </style>
 </resources>
