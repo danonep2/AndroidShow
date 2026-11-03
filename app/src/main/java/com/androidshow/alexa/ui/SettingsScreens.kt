@@ -48,8 +48,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -127,6 +132,16 @@ fun SettingsScreen(
         }
         section(footer = "AndroidShow ${BuildConfig.VERSION_NAME}") {
             IosRow("Sair da conta", titleColor = Ios.Destructive, centered = true, onClick = { confirmLogout = true })
+        }
+        item {
+            Text(
+                buildAnnotatedString {
+                    append("Feito por ")
+                    withLink(LinkAnnotation.Url(AUTHOR_URL, TextLinkStyles(SpanStyle(color = Ios.Tint)))) { append("Iago Amorim") }
+                },
+                color = Ios.SecondaryLabel, fontSize = 13.sp,
+                modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 2.dp),
+            )
         }
     }
 
@@ -394,3 +409,6 @@ private fun rememberBackgroundExemption(): BackgroundExemption {
 /** "alexa_v0.1.onnx" → "Alexa"; "jerson.onnx" → "Jerson". */
 private fun labelFor(model: String) =
     model.substringBefore('.').substringBefore("_v").replace('_', ' ').replaceFirstChar { it.uppercase() }
+
+/** Página do autor, no rodapé dos Ajustes. */
+private const val AUTHOR_URL = "https://iago.dev"
