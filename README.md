@@ -57,3 +57,8 @@ Requer JDK 17+ e Android SDK (platform 36).
 - [ ] Etapa 5 — Casa Inteligente via cookies (`api/phoenix`), palavra de ativação
 
 Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Componentes de terceiros
+
+O renderizador APL (Apache 2.0) e os modelos do openWakeWord (CC BY-NC-SA 4.0) têm licenças próprias.
+Veja [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
