@@ -29,9 +29,8 @@ apps oficiais usam. O tipo de dispositivo não fica no repositório: vem de `and
    APIs de `alexa.<domínio>` (Casa Inteligente, volume etc.).
 7. `SecureStore` guarda a `Session` cifrada com AES-256-GCM (chave no Android Keystore).
 
-Pendente de confirmação no `Alexa.dll` (pedido à sessão de análise do app Windows):
-`openid.assoc_handle` do Windows (hoje usamos o do iOS, `amzn_dp_project_dee_ios[_tld]`),
-`app_name`, `os_version` e `device_model` exatos.
+`app_name`, `app_version`, `device_model`, `os_name` e `os_version` também vêm da configuração do build
+(`androidshow.appName` etc.); vazios, descrevem o próprio AndroidShow.
 
 ## 2. AVS (etapa 2)
 
@@ -60,9 +59,4 @@ pelo anexo.
 - Enquanto a tela está aberta, o contexto de cada evento inclui `Alexa.Display.Window.WindowState`
   (e `Alexa.Presentation.APL.RenderedDocumentState` com APL na tela), para a nuvem saber que há tela.
 
-### Pendências
-
-1. Confirmar no `Alexa.dll` (Ghidra) o protocolo do `MMHomeAgent`/`ShowModeAgent`: eventos, heartbeat,
-   contexto e se o app publica capabilities.
-2. Trocar o APL simplificado pelo renderizador open source `apl-viewhost-web` num WebView
-   (ponte `renderDocument`/`executeCommands`/`processSendEvent`, como o `aplInterface.js` do Windows).
+O renderizador APL e a home do modo Show estão descritos em [APL.md](APL.md).

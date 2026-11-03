@@ -1,14 +1,13 @@
 # AndroidShow
 
 Cliente Alexa nativo para Android com foco no **modo Show** (tela cheia estilo Echo Show no celular).
-Reimplementa o que foi observado em dois clientes existentes:
+Fala com a Alexa pelo protocolo AVS `v20160207` e desenha as telas com o renderizador APL oficial
+de código aberto.
 
-- **Alexa para Windows** (Microsoft Store): registro do dispositivo, cookies das APIs web e o modo Show
-  (`Alexa.Presentation.Home`, APL, TemplateRuntime).
-- **Ultimate Alexa** (Android): comunicação AVS `v20160207` (downchannel, eventos multipart, ping).
-
-> Projeto pessoal de interoperabilidade. O app se registra imitando o cliente Windows da Amazon, o que
-> não é suportado pela Amazon e pode violar os termos de uso. Use só com a sua própria conta.
+> Projeto pessoal de interoperabilidade, sem relação com a Amazon. O login depende de um perfil de
+> dispositivo fornecido por quem compila (veja [Compilar](#compilar)). A Amazon não aceita mais
+> registros de produtos Alexa Built-in novos, então usar este app não é suportado por ela e pode
+> violar os termos de uso. Use só com a sua própria conta e por sua conta e risco.
 
 ## Stack
 
@@ -36,26 +35,29 @@ app/src/main/java/com/androidshow/alexa/
   show/   modo Show: tela cheia, cartões, player e APL
   AlexaService.kt  orquestra sessão, diretivas e contexto
   ui/     telas do app
-docs/      arquitetura e notas de engenharia reversa
+docs/      arquitetura e notas técnicas
 ```
 
 ## Compilar
 
 Requer JDK 17+ e Android SDK (platform 36).
 
-O tipo de dispositivo usado no registro na Amazon **não vem no projeto**. Defina-o no `local.properties`
-(que não vai para o git) ou numa variável de ambiente:
+O perfil de dispositivo usado no registro na Amazon **não vem no projeto**. Defina-o no
+`local.properties` (que não vai para o git) ou em variáveis de ambiente `ANDROIDSHOW_<CAMPO>`
+(por exemplo `ANDROIDSHOW_DEVICE_TYPE`):
 
 ```properties
+# obrigatório; sem ele o login fica bloqueado
 androidshow.deviceType=<TIPO>
+# opcionais; vazios, descrevem o próprio AndroidShow
+androidshow.appName=
+androidshow.appVersion=
+androidshow.deviceModel=
+androidshow.osName=
+androidshow.osVersion=
 ```
 
-```bash
-export ANDROIDSHOW_DEVICE_TYPE=<TIPO>
-```
-
-Sem esse valor o app compila, mas o login fica bloqueado. Escolher e usar um tipo de dispositivo é
-responsabilidade de quem compila.
+Escolher e usar um perfil de dispositivo é responsabilidade de quem compila.
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -67,8 +69,9 @@ responsabilidade de quem compila.
 - [x] Etapa 1 — autenticação (login Amazon, `auth/register`, refresh, cookies)
 - [x] Etapa 2 — AVS e comandos de voz (Speak, ExpectSpeech, Speaker, SetEndpoint)
 - [x] Etapa 3 — modo Show: tela cheia, relógio, cartões TemplateRuntime, player, APL simplificado
-- [ ] Etapa 4 — renderizador APL completo e home `Alexa.Presentation.Home` (depende da decompilação do `Alexa.dll`)
-- [ ] Etapa 5 — Casa Inteligente via cookies (`api/phoenix`), palavra de ativação
+- [x] Etapa 4 — renderizador APL oficial e home `Alexa.Presentation.Home`
+- [x] Etapa 5 — palavra de ativação local (openWakeWord) e palavras próprias
+- [ ] Etapa 6 — alertas e lembretes; Casa Inteligente via cookies (`api/phoenix`)
 
 Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -76,3 +79,8 @@ Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 O renderizador APL (Apache 2.0) e os modelos do openWakeWord (CC BY-NC-SA 4.0) têm licenças próprias.
 Veja [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Licença
+
+O código do AndroidShow usa a licença [MIT](LICENSE). Componentes de terceiros mantêm as próprias licenças
+(veja acima).

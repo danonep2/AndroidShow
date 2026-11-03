@@ -7,15 +7,20 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Tipo de dispositivo usado no registro na Amazon. Não fica no repositório: quem compila define
-// `androidshow.deviceType` no local.properties ou a variável ANDROIDSHOW_DEVICE_TYPE (ver README).
-val deviceType: String = run {
-    val local = Properties()
-    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(local::load)
-    (local.getProperty("androidshow.deviceType") ?: providers.environmentVariable("ANDROIDSHOW_DEVICE_TYPE").orNull)
-        .orEmpty().trim()
+// Perfil com que o app se registra na Amazon. Não fica no repositório: quem compila define as chaves
+// `androidshow.<campo>` no local.properties ou as variáveis ANDROIDSHOW_<CAMPO> (ver README).
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(::load)
 }
-require(deviceType.matches(Regex("[A-Z0-9]*"))) { "androidshow.deviceType inválido: use só letras maiúsculas e dígitos" }
+val profileFields = listOf("deviceType", "appName", "appVersion", "deviceModel", "osName", "osVersion")
+fun profile(field: String): String {
+    val constant = field.replace(Regex("([A-Z])"), "_$1").uppercase()
+    val value = (localProperties.getProperty("androidshow.$field")
+        ?: providers.environmentVariable("ANDROIDSHOW_$constant").orNull).orEmpty().trim()
+    require(!value.contains('"') && !value.contains('\\')) { "androidshow.$field não pode ter aspas nem barra invertida" }
+    return value
+}
+require(profile("deviceType").matches(Regex("[A-Z0-9]*"))) { "androidshow.deviceType inválido: use só letras maiúsculas e dígitos" }
 
 android {
     namespace = "com.androidshow.alexa"
@@ -29,7 +34,9 @@ android {
         versionName = "0.1.0"
         // Só arm64: o ONNX Runtime traz libs nativas grandes por ABI.
         ndk { abiFilters += "arm64-v8a" }
-        buildConfigField("String", "DEVICE_TYPE", "\"$deviceType\"")
+        for (field in profileFields) {
+            buildConfigField("String", "PROFILE_" + field.replace(Regex("([A-Z])"), "_$1").uppercase(), "\"${profile(field)}\"")
+        }
     }
 
     buildTypes {

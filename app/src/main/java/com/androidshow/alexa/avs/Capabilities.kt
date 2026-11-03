@@ -100,7 +100,7 @@ object Capabilities {
         }
     }
 
-    /** PUT /v1/devices/@self/capabilities (204 = aceito) [Observado: aceito para o tipo do app Windows]. */
+    /** PUT /v1/devices/@self/capabilities (204 = aceito) [Observado]. */
     suspend fun publish(http: OkHttpClient, auth: AuthRepository, s: Session, caps: JsonArray): Int {
         val body = buildJsonObject {
             put("envelopeVersion", "20160207")
@@ -118,8 +118,8 @@ object Capabilities {
     }
 
     /**
-     * Evento Alexa.Discovery.AddOrUpdateReport (modelo de endpoints), que o app Windows usa
-     * (`SendAddOrUpdateReportEvent` no Alexa.dll) [Observado]. Vai sem contexto: o envelope v3
+     * Evento Alexa.Discovery.AddOrUpdateReport (modelo de endpoints), necessário para a nuvem mandar
+     * conteúdo visual [Observado]. Vai sem contexto: o envelope v3
      * recusa o contexto em lista dos eventos v20160207 [Observado: 400 INVALID_REQUEST_EXCEPTION].
      */
     fun discoveryEvent(s: Session, caps: JsonArray, token: String): JsonObject = buildJsonObject {

@@ -33,7 +33,7 @@ enum class Marketplace(val label: String, val domain: String, val region: AvsReg
     val locale get() = language.replace('_', '-')
 
     companion object {
-        // [Inferido] Valor do app Alexa iOS, usado por alexa-cookie/alexapy; trocar pelo do app Windows quando confirmado.
+        // Handle aceito pela página de login da Amazon; o mesmo que bibliotecas abertas como alexa-cookie e alexapy usam.
         const val ASSOC_HANDLE = "amzn_dp_project_dee_ios"
     }
 }
