@@ -35,8 +35,8 @@ source .venv/bin/activate
 step "Repositórios"
 [ -d openwakeword ] || git clone -q https://github.com/dscripka/openWakeWord openwakeword
 [ -d piper-sample-generator ] || git clone -q https://github.com/rhasspy/piper-sample-generator
-# Versões mais novas viraram pacote e o train.py do openWakeWord não encontra mais generate_samples.
-git -C piper-sample-generator checkout -q 4057c1a
+# O train.py do openWakeWord espera esta versão: as seguintes usam o piper 1.3 e depois viraram pacote.
+git -C piper-sample-generator checkout -q 213d4d5
 GEN=piper-sample-generator/models/en_US-libritts_r-medium.pt
 [ -f "$GEN" ] || curl -L --fail -o "$GEN" \
     https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt
@@ -49,7 +49,7 @@ uv pip install -q \
     mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 speechbrain==0.5.14 \
     audiomentations==0.33.0 torch-audiomentations==0.11.0 acoustics==0.2.6 \
     pronouncing==0.2.0 datasets==2.14.6 "fsspec<=2023.9.2" "pyarrow==14.0.2" deep-phonemizer==0.0.19 \
-    pyyaml soundfile piper-tts==1.2.0 onnx onnxruntime
+    pyyaml soundfile piper-tts==1.2.0 onnx onnxruntime "setuptools<70"
 python - <<'EOF'
 import torch
 ok = torch.cuda.is_available()
@@ -62,6 +62,14 @@ mkdir -p "$RES"
 for f in embedding_model.onnx melspectrogram.onnx embedding_model.tflite melspectrogram.tflite; do
     [ -f "$RES/$f" ] || curl -sL --fail -o "$RES/$f" "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/$f"
 done
+# Fonemas para gerar as frases negativas parecidas. O bucket S3 de onde o openWakeWord baixa
+# responde 403; este espelho publica o mesmo arquivo com SHA256SUMS.
+DP=openwakeword/openwakeword/resources/en_us_cmudict_forward.pt
+if [ ! -s "$DP" ] || ! head -c 1 "$DP" | grep -qv '<'; then
+    M=https://huggingface.co/TaterTotterson/DeepPhonemizer/resolve/main
+    curl -sL --fail -o "$DP" "$M/en_us_cmudict_forward.pt"
+    (cd "$(dirname "$DP")" && curl -sL --fail "$M/SHA256SUMS" | grep en_us_cmudict_forward.pt | sha256sum -c -)
+fi
 
 step "Dados de treino"
 cd data
