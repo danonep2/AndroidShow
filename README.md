@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/banner.png" alt="AndroidShow: tela inicial com o círculo da Alexa e o modo Show com relógio e clima" width="100%">
+</p>
+
 # AndroidShow
 
 Cliente Alexa nativo para Android com foco no **modo Show** (tela cheia estilo Echo Show no celular).
