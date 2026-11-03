@@ -43,6 +43,20 @@ docs/      arquitetura e notas de engenharia reversa
 
 Requer JDK 17+ e Android SDK (platform 36).
 
+O tipo de dispositivo usado no registro na Amazon **não vem no projeto**. Defina-o no `local.properties`
+(que não vai para o git) ou numa variável de ambiente:
+
+```properties
+androidshow.deviceType=<TIPO>
+```
+
+```bash
+export ANDROIDSHOW_DEVICE_TYPE=<TIPO>
+```
+
+Sem esse valor o app compila, mas o login fica bloqueado. Escolher e usar um tipo de dispositivo é
+responsabilidade de quem compila.
+
 ```bash
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest

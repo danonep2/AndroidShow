@@ -1,5 +1,7 @@
 package com.androidshow.alexa.auth
 
+import com.androidshow.alexa.BuildConfig
+
 /**
  * Identidade com que o celular se registra na Amazon.
  * Imita o app Alexa para Windows (pacote 57540AMZNMobileLLC.AmazonAlexa 3.25.1177.0), que é o
@@ -7,7 +9,9 @@ package com.androidshow.alexa.auth
  * Campos marcados [Inferido] ainda não foram confirmados no Alexa.dll (ver docs/research).
  */
 object DeviceProfile {
-    const val DEVICE_TYPE = "<REMOVIDO>"          // [Observado] Config do app Windows
+    /** Definido por quem compila (local.properties ou variável de ambiente); vazio = login bloqueado. */
+    val DEVICE_TYPE: String = BuildConfig.DEVICE_TYPE
+    val isConfigured: Boolean get() = DEVICE_TYPE.isNotEmpty()
     const val APP_NAME = "Amazon Alexa"               // [Inferido]
     const val APP_VERSION = "3.25.1177.0"             // [Observado] versão do pacote
     const val DEVICE_MODEL = "Windows"                // [Inferido]

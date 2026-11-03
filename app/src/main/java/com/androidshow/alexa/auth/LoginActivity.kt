@@ -41,6 +41,13 @@ class LoginActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!DeviceProfile.isConfigured) {
+            DiagLog.w("login", "tipo de dispositivo não configurado neste build")
+            Toast.makeText(this, "Este build não tem tipo de dispositivo configurado (veja o README).", Toast.LENGTH_LONG).show()
+            setResult(RESULT_CANCELED)
+            finish()
+            return
+        }
         marketplace = Marketplace.valueOf(intent.getStringExtra(EXTRA_MARKETPLACE) ?: Marketplace.BR.name)
         identity = savedInstanceState?.getString(STATE_IDENTITY)
             ?.let { Http.json.decodeFromString(DeviceIdentity.serializer(), it) }
@@ -80,7 +87,7 @@ class LoginActivity : Activity() {
 
     override fun onDestroy() {
         scope.cancel()
-        web.destroy()
+        if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
 

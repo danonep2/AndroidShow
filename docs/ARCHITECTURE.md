@@ -6,7 +6,8 @@ Marcação usada aqui e no código: **[Observado]** = visto nos binários analis
 ## 1. Autenticação
 
 Fluxo de "registro de dispositivo" do MAP (Mobile Authentication Platform) da Amazon, o mesmo que os
-apps oficiais usam. O app Windows se registra com o tipo `<REMOVIDO>` [Observado].
+apps oficiais usam. O tipo de dispositivo não fica no repositório: vem de `androidshow.deviceType`
+(local.properties) ou de `ANDROIDSHOW_DEVICE_TYPE`, definidos por quem compila. Sem ele, o login fica bloqueado.
 
 1. `DeviceIdentity.generate()` cria:
    - `serial`: 16 bytes aleatórios em hex;

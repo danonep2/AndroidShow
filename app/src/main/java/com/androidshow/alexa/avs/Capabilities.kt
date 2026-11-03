@@ -100,7 +100,7 @@ object Capabilities {
         }
     }
 
-    /** PUT /v1/devices/@self/capabilities (204 = aceito) [Observado: aceito para <REMOVIDO>]. */
+    /** PUT /v1/devices/@self/capabilities (204 = aceito) [Observado: aceito para o tipo do app Windows]. */
     suspend fun publish(http: OkHttpClient, auth: AuthRepository, s: Session, caps: JsonArray): Int {
         val body = buildJsonObject {
             put("envelopeVersion", "20160207")

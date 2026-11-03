@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Tipo de dispositivo usado no registro na Amazon. Não fica no repositório: quem compila define
+// `androidshow.deviceType` no local.properties ou a variável ANDROIDSHOW_DEVICE_TYPE (ver README).
+val deviceType: String = run {
+    val local = Properties()
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(local::load)
+    (local.getProperty("androidshow.deviceType") ?: providers.environmentVariable("ANDROIDSHOW_DEVICE_TYPE").orNull)
+        .orEmpty().trim()
+}
+require(deviceType.matches(Regex("[A-Z0-9]*"))) { "androidshow.deviceType inválido: use só letras maiúsculas e dígitos" }
 
 android {
     namespace = "com.androidshow.alexa"
@@ -17,6 +29,7 @@ android {
         versionName = "0.1.0"
         // Só arm64: o ONNX Runtime traz libs nativas grandes por ABI.
         ndk { abiFilters += "arm64-v8a" }
+        buildConfigField("String", "DEVICE_TYPE", "\"$deviceType\"")
     }
 
     buildTypes {
