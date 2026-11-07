@@ -51,7 +51,12 @@ class WakeWordService : android.app.Service() {
         engine = e
         detector = d
         g.microphone.add(d)
-        scope.launch { g.alexa.dialog.collect { d.paused = it != AlexaService.Dialog.Idle } }
+        // Segue ouvindo enquanto a Alexa fala, para permitir interromper ("Alexa, para").
+        scope.launch {
+            g.alexa.dialog.collect {
+                d.paused = it == AlexaService.Dialog.Listening || it == AlexaService.Dialog.Thinking
+            }
+        }
         if (com.androidshow.alexa.BuildConfig.DEBUG) {
             val ctx = applicationContext
             Thread({ runCatching { OpenWakeWord.benchmark(ctx, config.model) }.onFailure { DiagLog.w("wake", "benchmark falhou", it) } }, "wake-benchmark").start()

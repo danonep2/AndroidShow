@@ -23,6 +23,12 @@ class Attachments {
         return bytes
     }
 
+    /** Descarta um anexo que não será tocado (fala de um diálogo interrompido). */
+    fun discard(reference: String) {
+        val id = normalize(reference)
+        pending.remove(id)?.cancel()
+    }
+
     private fun slot(id: String) = pending.getOrPut(id) { CompletableDeferred() }
 
     private fun normalize(id: String) = id.removePrefix("cid:").trim().removePrefix("<").removeSuffix(">")

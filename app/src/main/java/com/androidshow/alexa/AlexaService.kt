@@ -85,6 +85,13 @@ class AlexaService(
     @Volatile private var capture: AudioCapture? = null
     private var speechToken = ""
     private var speechActivity = "FINISHED"
+    private var speechOffsetMs = 0L
+    /** Reprodução da fala atual; cancelar interrompe (barge-in). */
+    @Volatile private var speechJob: Job? = null
+    /** Diálogo do último Recognize enviado: a resposta em andamento pertence a ele. */
+    @Volatile private var lastDialogRequestId: String? = null
+    /** Diálogos interrompidos pelo usuário: diretivas que ainda chegarem deles são descartadas. */
+    private val cancelledDialogs = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
     private var started = false
     private var capabilitiesPublished = false
     private val display = context.resources.displayMetrics
@@ -180,6 +187,10 @@ class AlexaService(
         localEndpointing: Boolean = true,
     ): Job? {
         if (capture != null) return null
+        // Chamada nova (voz ou toque) com a Alexa falando: corta a resposta atual.
+        if (_dialog.value == Dialog.Speaking || speechJob != null) interrupt()
+        val dialogRequestId = UUID.randomUUID().toString()
+        lastDialogRequestId = dialogRequestId
         val mic = AudioCapture(microphone, preroll, localEndpointing = localEndpointing, debugCopy = debugAudio)
         capture = mic
         microphone.add(levelListener)
@@ -192,7 +203,7 @@ class AlexaService(
         }
         return scope.launch {
             try {
-                avs.sendEvent(avsEvent("SpeechRecognizer", "Recognize", payload, UUID.randomUUID().toString()), mic)
+                avs.sendEvent(avsEvent("SpeechRecognizer", "Recognize", payload, dialogRequestId), mic)
             } catch (e: Exception) {
                 append("Erro no Recognize: ${e.message}")
             } finally {
@@ -215,12 +226,29 @@ class AlexaService(
         }
     }
 
+    /**
+     * Barge-in: para a fala atual e descarta o resto da resposta (outras falas, ExpectSpeech)
+     * do mesmo diálogo. A música não é afetada aqui; "Alexa, para" chega como diretiva própria.
+     */
+    private fun interrupt() {
+        lastDialogRequestId?.let(cancelledDialogs::add)
+        speechJob?.let {
+            DiagLog.i("fala", "interrompida pelo usuário")
+            it.cancel()
+        }
+    }
+
     private fun stopLevel() {
         microphone.remove(levelListener)
         _micLevel.value = 0f
     }
 
     private suspend fun handle(d: Directive) {
+        if (d.dialogRequestId != null && d.dialogRequestId in cancelledDialogs) {
+            DiagLog.i("avs", "descartada (diálogo interrompido): ${d.key}")
+            if (d.key == "SpeechSynthesizer.Speak") d.payload.str("url")?.let(attachments::discard)
+            return
+        }
         append(d.key)
         when (d.key) {
             "SpeechSynthesizer.Speak" -> speak(d)
@@ -251,16 +279,33 @@ class AlexaService(
         }
         speechToken = token
         speechActivity = "PLAYING"
+        speechOffsetMs = 0
         _dialog.value = Dialog.Speaking
         val tokenPayload = buildJsonObject { put("token", token) }
         scope.launch { runCatching { avs.sendEvent(avsEvent("SpeechSynthesizer", "SpeechStarted", tokenPayload)) } }
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        val job = scope.launch { player.play(mp3) }
+        speechJob = job
         try {
-            player.play(mp3)
+            job.join()
         } finally {
-            speechActivity = "FINISHED"
-            _dialog.value = Dialog.Idle
+            speechJob = null
+            speechOffsetMs = android.os.SystemClock.elapsedRealtime() - startedAt
+            // Se o usuário já chamou de novo, o estado é Listening: não sobrescreve.
+            _dialog.update { if (it == Dialog.Speaking) Dialog.Idle else it }
         }
-        scope.launch { runCatching { avs.sendEvent(avsEvent("SpeechSynthesizer", "SpeechFinished", tokenPayload)) } }
+        if (job.isCancelled) {
+            speechActivity = "INTERRUPTED"
+            val payload = buildJsonObject {
+                put("token", token)
+                put("offsetInMilliseconds", speechOffsetMs)
+                put("playerActivity", "INTERRUPTED")
+            }
+            scope.launch { runCatching { avs.sendEvent(avsEvent("SpeechSynthesizer", "SpeechInterrupted", payload)) } }
+        } else {
+            speechActivity = "FINISHED"
+            scope.launch { runCatching { avs.sendEvent(avsEvent("SpeechSynthesizer", "SpeechFinished", tokenPayload)) } }
+        }
     }
 
     private fun currentVolume(): Int {
@@ -291,7 +336,7 @@ class AlexaService(
         val items = mutableListOf(
             avsState("SpeechSynthesizer", "SpeechState", buildJsonObject {
                 put("token", speechToken)
-                put("offsetInMilliseconds", 0)
+                put("offsetInMilliseconds", if (speechActivity == "PLAYING") 0 else speechOffsetMs)
                 put("playerActivity", speechActivity)
             }),
             avsState("Speaker", "VolumeState", volumeState()),
