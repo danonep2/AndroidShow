@@ -6172,3 +6172,155 @@ index b5ea152..83619d7 100644
  include ':alexaextjni'
  
  dependencyResolutionManagement {
+diff --git a/apl/src/main/java/com/amazon/apl/enums/ComponentType.java b/apl/src/main/java/com/amazon/apl/enums/ComponentType.java
+index cc82b8a..7690784 100644
+--- a/apl/src/main/java/com/amazon/apl/enums/ComponentType.java
++++ b/apl/src/main/java/com/amazon/apl/enums/ComponentType.java
+@@ -26,7 +26,8 @@ public enum ComponentType implements APLEnum {
+     kComponentTypeText(10),
+     kComponentTypeTouchWrapper(11),
+     kComponentTypeVectorGraphic(12),
+-    kComponentTypeVideo(13);
++    kComponentTypeVideo(13),
++    kComponentTypeFlexSequenceComponent(14);
+ 
+     private static SparseArray<ComponentType> values = null;
+ 
+diff --git a/apl/src/main/java/com/amazon/apl/enums/EventMediaType.java b/apl/src/main/java/com/amazon/apl/enums/EventMediaType.java
+index 6c2866b..39bdbc5 100644
+--- a/apl/src/main/java/com/amazon/apl/enums/EventMediaType.java
++++ b/apl/src/main/java/com/amazon/apl/enums/EventMediaType.java
+@@ -14,8 +14,10 @@ import android.util.SparseArray;
+ public enum EventMediaType implements APLEnum {
+ 
+     kEventMediaTypeImage(0),
+-    kEventMediaTypeVideo(1),
+-    kEventMediaTypeVectorGraphic(2);
++    kEventMediaTypeVectorGraphic(1),
++    // AndroidShow: o core 2024.3 publico nao emite estes tipos; ids fora da faixa so para o
++    // codigo legado do viewhost compilar. Gerado pelo enumgen do APLCoreEngine 2024.3.
++    kEventMediaTypeVideo(1000);
+ 
+     private static SparseArray<EventMediaType> values = null;
+ 
+diff --git a/apl/src/main/java/com/amazon/apl/enums/EventType.java b/apl/src/main/java/com/amazon/apl/enums/EventType.java
+index dc5a04b..431e0c4 100644
+--- a/apl/src/main/java/com/amazon/apl/enums/EventType.java
++++ b/apl/src/main/java/com/amazon/apl/enums/EventType.java
+@@ -13,40 +13,37 @@ import android.util.SparseArray;
+ 
+ public enum EventType implements APLEnum {
+ 
+-    /**     * Control media     *     * kEventPropertyCommand: The command to execute     * kEventPropertyValue: The integer value associated with that command     *     * Does not have an ActionRef.     */
+-    kEventTypeControlMedia(0),
+     /**     * Change the focus     *     * Does not have an ActionRef.     *     * With kExperimentalFeatureHandleFocusInCore enabled:     * Notifies server about acquired or lost focus. Have Component reference if focus acquired, don't if releasing.     *     * kEventPropertyValue: Rect representing bounds of focused component.     * kEventPropertyDirection: Focus movement direction (in case of focus releasing).     *     * Doesn't have an ActionRef in case of acquired focus, have one in case of releasing that should be resolved with true     * if focus should be released and false if docus should stay where it is.     */
+-    kEventTypeFocus(1),
++    kEventTypeFocus(0),
+     /**     * Request a URL to be opened     *     * kEventPropertySource: The URL to open.     *     * The server must resolve the ActionRef if the URL is opened.     * The server should resolve the ActionRef with a non-zero argument     * if the URL fails to open.     */
+-    kEventTypeOpenURL(2),
+-    /**     * Play media     *     * kEventPropertyAudioTrack: The audio track we should play this media on.     * kEventPropertySource: An array of media sources     *     * The server must resolve the ActionRef when the audio track is set to foreground.     * If the audio track is background or none, the ActionRef is not provided.     */
+-    kEventTypePlayMedia(3),
+-    /**     * Warn the view host that a speak event is coming.     *     * kEventPropertySource: The speech URI.     *     * Does not have an ActionRef.     */
+-    kEventTypePreroll(4),
+-    /**     * Requests the bounds information for a text component     *     * The component is a TextComponent that needs the first line bounds measured     */
+-    kEventTypeRequestFirstLineBounds(5),
+-    /**     * Requests the bounds information for a text component     *     * kEventPropertyRangeStart byte range start     * kEventPropertyRangeEnd byte range end     *     * The component is a TextComponent that needs the line bounds measured     */
+-    kEventTypeRequestLineBounds(6),
++    kEventTypeOpenURL(1),
++    /**     * Requests the bounds information for a text component     *     * kEventPropertyRangeStart byte range start     * kEventPropertyRangeEnd byte range end     *     * The component is a TextComponent that needs the line bounds measured     * @deprecated Should not be used.     */
++    kEventTypeRequestLineBounds(2),
+     /**     * Requests the karaoke line to be highlighted     *     * kEventPropertyRangeStart byte range start     * kEventPropertyRangeEnd byte range end     *     * The component is a TextComponent that needs the line highlighted. If range is empty (0,0)     * clear any highlights.     *     * Does not have an ActionRef     */
+-    kEventTypeLineHighlight(7),
++    kEventTypeLineHighlight(3),
+     /**     * Send an event to the server     *     * kEventPropertySource: The rich source object describing who raised this event.     * kEventPropertyArguments: The argument array provided by the APL author     * kEventPropertyComponents: The values of the components requested by the APL author     *     * Does not have an ActionRef     */
+-    kEventTypeSendEvent(8),
+-    /**     * Speak a single component.     *     * kEventPropertyHighlightMode: Highlight mode. kEventHighlightModeLine or kEventHighlightModeBlock     * kEventPropertySource: The speech URI.     *     * The server must resolve the ActionRef when the scroll is completed.     */
+-    kEventTypeSpeak(9),
++    kEventTypeSendEvent(4),
+     /**     * Send a finish command.     *     * kEventPropertyReason: The reason for the finish command. kEventReasonExit or kEventReasonBack     *     * Does not have an ActionRef     */
+-    kEventTypeFinish(10),
++    kEventTypeFinish(5),
+     /**     * A extension event registered with the core engine by the view host.     */
+-    kEventTypeExtension(11),
++    kEventTypeExtension(6),
+     /**     * DataSourceProvider created event that could be used for data fetch requests.     *     * kEventPropertyName: name (type) of datasource that requests a fetch.     * kEventPropertyValue: implementation specific fetch request.     *     * Does not have an ActionRef     */
+-    kEventTypeDataSourceFetchRequest(12),
++    kEventTypeDataSourceFetchRequest(7),
+     /**     * The Document is asking to be reinflated.  The server (view host) should do one of the following:     *     * 1.  Leave the ActionRef unresolved and call RootContext::reinflate() to reinflate the document.     *     The ActionRef will be terminated and can be ignored.     * 2.  Resolve the ActionRef.  The RootContext will resize() the document if the screen size has changed     *     and continue normal command processing.     *     * No properties     *     * Has an ActionRef.     *     * Note: It is not necessary to resolve the ActionRef if the server is calling RootContext::reinflate()     * because all currently running command sequences will be terminated including the current ActionRef.     */
+-    kEventTypeReinflate(13),
++    kEventTypeReinflate(8),
+     /**     * The Document is asking for external media to be loaded. Only issued when     * @c ExperimentalFeature::kExperimentalFeatureManageMediaRequests is enabled.     *     * kEventPropertySource: the source URI of the requested media     * kEventPropertyMediaType: the type of media being requested     *     * Does not have an ActionRef     *     * Note: Runtime supposed to answer with a call to RootContext::mediaLoaded when media loaded.     */
+-    kEventTypeMediaRequest(14),
++    kEventTypeMediaRequest(9),
+     /**     * The document asking for virtual keyboard to be open. It's up to runtime to satisfy this request or not.     * Only issued when @c ExperimentalFeature::kExperimentalFeatureRequestKeyboard is enabled.     *     * Does not have an ActionRef     */
+-    kEventTypeOpenKeyboard(15),
++    kEventTypeOpenKeyboard(10),
+     /**     * Document config requires to be refreshed. This usually includes checking if content isWaiting()     * and subsequently resolving required packages.     */
+-    kEventTypeContentRefresh(16);
++    kEventTypeContentRefresh(11),
++    // AndroidShow: o core 2024.3 publico nao emite estes tipos; ids fora da faixa so para o
++    // codigo legado do viewhost compilar. Gerado pelo enumgen do APLCoreEngine 2024.3.
++    kEventTypeControlMedia(1000),
++    kEventTypePlayMedia(1001),
++    kEventTypePreroll(1002),
++    kEventTypeRequestFirstLineBounds(1003),
++    kEventTypeSpeak(1004);
+ 
+     private static SparseArray<EventType> values = null;
+ 
+diff --git a/apl/src/main/java/com/amazon/apl/enums/PropertyKey.java b/apl/src/main/java/com/amazon/apl/enums/PropertyKey.java
+index 1b49371..9640946 100644
+--- a/apl/src/main/java/com/amazon/apl/enums/PropertyKey.java
++++ b/apl/src/main/java/com/amazon/apl/enums/PropertyKey.java
+@@ -383,14 +383,16 @@ public enum PropertyKey implements APLEnum {
+     kPropertyOnCursorEnter(183),
+     /// Component handler for cursor exit
+     kPropertyOnCursorExit(184),
++    /// Component handler for cursor move
++    kPropertyOnCursorMove(185),
+     /// Component attached to Yoga tree and has flexbox properties calculated.
+-    kPropertyLaidOut(185),
++    kPropertyLaidOut(186),
+     /// EditTextComponent restrict the characters that can be entered
+-    kPropertyValidCharacters(186),
++    kPropertyValidCharacters(187),
+     /// Visual hash
+-    kPropertyVisualHash(187),
++    kPropertyVisualHash(188),
+     /// Flexbox wrap
+-    kPropertyWrap(188);
++    kPropertyWrap(189);
+ 
+     private static SparseArray<PropertyKey> values = null;
+ 
+diff --git a/apl/src/main/java/com/amazon/apl/enums/SpanType.java b/apl/src/main/java/com/amazon/apl/enums/SpanType.java
+index a5a355c..558911c 100644
+--- a/apl/src/main/java/com/amazon/apl/enums/SpanType.java
++++ b/apl/src/main/java/com/amazon/apl/enums/SpanType.java
+@@ -14,16 +14,16 @@ import android.util.SparseArray;
+ public enum SpanType implements APLEnum {
+ 
+     kSpanTypeLineBreak(0),
+-    kSpanTypeStrong(1),
+-    kSpanTypeItalic(2),
+-    kSpanTypeStrike(3),
+-    kSpanTypeUnderline(4),
+-    kSpanTypeMonospace(5),
+-    kSpanTypeSuperscript(6),
+-    kSpanTypeSubscript(7),
+-    kSpanTypeNoBreak(8),
+-    kSpanTypeSpan(9),
+-    kSpanTypeListItem(10);
++    kSpanTypeListItem(1),
++    kSpanTypeStrong(2),
++    kSpanTypeItalic(3),
++    kSpanTypeStrike(4),
++    kSpanTypeUnderline(5),
++    kSpanTypeMonospace(6),
++    kSpanTypeSuperscript(7),
++    kSpanTypeSubscript(8),
++    kSpanTypeNoBreak(9),
++    kSpanTypeSpan(10);
+ 
+     private static SparseArray<SpanType> values = null;
+ 

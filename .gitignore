@@ -10,3 +10,6 @@ build/
 .cxx/
 *.keystore
 *.jks
+
+# Modelos de palavra de ativação baixados prontos (CC BY-NC-SA, não vão para o repositório)
+/tools/wakeword/prontos/

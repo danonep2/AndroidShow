@@ -44,7 +44,23 @@ O repositório público (tag e `main`) não compila sem ajustes:
   `VideoViewAdapter.inflateViewWithNonZeroDimensions` (caso legado de vídeo, vira no-op).
 - **Eventos sem tratamento**: `buildEvent` não ligava PlayMedia, ControlMedia, RequestLineBounds,
   Preroll e Speak (NPE a cada frame). Os quatro primeiros usam as classes existentes; Preroll e
-  Speak (SpeakItem) se resolvem na hora, já que o app não tem TTS do APL.
+  Speak (SpeakItem) se resolvem na hora, já que o app não tem TTS do APL. Com os enums corrigidos
+  (item abaixo), esses tipos não chegam mais do core; os casos ficam só para o código compilar.
+- **Enums fora de sincronia com o core**: os enums Java versionados no viewhost não batem com o
+  apl-core público 2024.3 e o Java lia o número de outra propriedade ou evento. O patch traz
+  `ComponentType`, `EventMediaType`, `EventType`, `PropertyKey` e `SpanType` gerados pelo `enumgen`
+  do próprio APLCoreEngine, com os mesmos filtros do `android/coreengine/CMakeLists.txt`.
+  - `PropertyKey`: faltava `kPropertyOnCursorMove`. O `kPropertyVisualHash` era lido vazio, e
+    todos os textos de um documento caíam na mesma chave do cache de layout. Saíam o mesmo texto
+    curto, com o tamanho e a cor do primeiro texto medido.
+  - `EventType`: o Java tinha cinco tipos a mais no começo (ControlMedia, PlayMedia, Preroll,
+    RequestFirstLineBounds, Speak), então todo evento era lido como outro. SendEvent era lido como
+    Preroll, por isso nunca chegava ao app. Os tipos ausentes no core ficam com ids 1000+.
+  - `SpanType`: negrito, itálico e os outros estilos de texto estavam deslocados em um.
+  - `EventMediaType`: o core não tem `Video`, que fica com id 1000.
+
+  Para conferir depois de atualizar o core, gere os enums com o `enumgen` e compare com
+  `apl/src/main/java/com/amazon/apl/enums` (o `enumgen` no Windows grava CRLF; converta para LF).
 - **Classe duplicada**: `devtools.controllers.DTConnection` antiga removida em favor de `impl`.
 - `settings.gradle` reduzido aos módulos necessários.
 
