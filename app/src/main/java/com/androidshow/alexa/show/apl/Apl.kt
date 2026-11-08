@@ -112,7 +112,8 @@ fun AplDocument(
     modifier: Modifier = Modifier,
     /** Recria a view (e o documento) quando muda, mesmo com o mesmo documento. */
     renderKey: Any = Unit,
-    onSendEvent: (Array<Any?>) -> Unit = {},
+    /** Argumentos do SendEvent e o componente que o disparou (`sources`: id, type, handler...). */
+    onSendEvent: (Array<Any?>, Map<String, Any?>) -> Unit = { _, _ -> },
 ) {
     // Um controlador por documento: key() recria a view (e o render) só quando o documento muda.
     key(document, renderKey) {
@@ -139,7 +140,7 @@ fun AplDocument(
                         val json = data(request)
                         if (json != null) success.onSuccess(request, json) else failure.onFailure(request, "sem dados para $request")
                     }
-                    .sendEventCallbackV2 { args, _, _, _ -> onSendEvent(args) }
+                    .sendEventCallbackV2 { args, _, sources, _ -> onSendEvent(args, sources.orEmpty()) }
                     .build()
                 holder[0] = runCatching {
                     APLController.builder()

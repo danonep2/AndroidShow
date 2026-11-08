@@ -56,6 +56,12 @@ sealed interface ShowScreen {
          */
         fun dataFor(name: String): String? =
             datasources?.get(name)?.toString() ?: if (name == "payload") datasources?.toString() else null
+
+        /** Receitas desenhadas pelo app (null: o renderizador APL desenha o documento). */
+        val recipes: com.androidshow.alexa.show.recipes.RecipeView? by lazy {
+            runCatching { com.androidshow.alexa.show.recipes.Recipes.parse(this) }
+                .onFailure { DiagLog.w("show", "receitas: leitura falhou", it) }.getOrNull()
+        }
     }
 }
 
@@ -82,6 +88,16 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
 
     /** Envia eventos ao AVS (ligado pelo AppGraph). */
     var sendEvent: (suspend (JsonObject) -> Unit)? = null
+
+    /** Toque do usuário numa tela da Alexa: corta a fala atual, como o app Windows faz. */
+    var onUserTouch: (() -> Unit)? = null
+
+    private val _recipeCommands = kotlinx.coroutines.flow.MutableSharedFlow<com.androidshow.alexa.show.recipes.RecipeCommand>(extraBufferCapacity = 8)
+    /** "Próximo passo", "mostrar ingredientes"...: ExecuteCommands traduzidos para a tela nativa. */
+    val recipeCommands: kotlinx.coroutines.flow.SharedFlow<com.androidshow.alexa.show.recipes.RecipeCommand> = _recipeCommands
+
+    /** Os dumps de APL são numerados para guardar a sequência (lista → detalhe → passo a passo). */
+    private var aplDumpSeq = 0
 
     // Estado da home multimodal (MMHome). Protocolo observado nos logs do app Windows:
     // HomeStarted → RenderDocument (APL "SPA") + UpdateSettingSchemas → DataExpired → UpdateData.
@@ -218,7 +234,139 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
             as? kotlinx.serialization.json.JsonArray ?: return
         val first = json.firstOrNull() as? JsonObject
         if (first?.get("isMMHomePagerOnPageChanged") != null) return
+        sendUserEvent(token, json)
+    }
+
+    /**
+     * SendEvent da home: a troca de página é só telemetria; o toque num cartão manda o evento
+     * pronto que o próprio cartão traz para aquela parte (ver [HomeCardActions]).
+     */
+    fun onHomeSendEvent(args: Array<Any?>, source: Map<String, Any?>) {
+        val json = runCatching { Http.json.parseToJsonElement(org.json.JSONArray(args).toString()) }.getOrNull()
+            as? JsonArray ?: return
+        if ((json.firstOrNull() as? JsonObject)?.get("isMMHomePagerOnPageChanged") != null) return
+        val sourceId = source["id"]?.toString()?.takeIf { it.isNotBlank() }
+        val event = HomeCardActions.eventFor(homeItems.values, json, sourceId)
+        if (event == null) {
+            DiagLog.w("show", "toque na home sem ação no cartão (componente $sourceId): ${json.toString().take(200)}")
+            return
+        }
+        DiagLog.i("show", "toque na home (componente $sourceId): ${event.namespace}.${event.name} ${event.payload.toString().take(300)}")
+        onUserTouch?.invoke()
+        scope.launch {
+            runCatching { sendEvent?.invoke(avsEvent(event.namespace, event.name, event.payload)) }
+                .onFailure { DiagLog.w("show", "toque na home falhou", it) }
+        }
+    }
+
+    /**
+     * Toque numa receita da lista nativa: manda o UserEvent que o documento APL mandaria.
+     * false quando o documento não traz a ação do item (o detalhe abre só no app).
+     */
+    fun selectRecipe(screen: ShowScreen.Apl, recipe: com.androidshow.alexa.show.recipes.Recipe): Boolean {
+        val args = com.androidshow.alexa.show.recipes.RecipeTouch.argumentsFor(screen.document, screen.datasources, recipe)
+        if (args == null) {
+            DiagLog.i("show", "receita ${recipe.index + 1}: documento sem SendEvent do item, abrindo detalhe local")
+            return false
+        }
+        sendUserEvent(screen.token, args)
+        return true
+    }
+
+    /** Botão do documento (ex.: "Iniciar receita") ou o "voltar" dos layouts da cozinha (`["back"]`). */
+    fun sendRecipeAction(screen: ShowScreen.Apl, arguments: JsonArray) = sendUserEvent(screen.token, arguments)
+
+    /** Telas de receita já vistas (lista → detalhe → passo a passo → lista avulsa), para o voltar. */
+    private val recipeStack = ArrayDeque<ShowScreen.Apl>()
+
+    private fun trackRecipeNavigation(current: ShowScreen.Apl?, next: ShowScreen.Apl) {
+        val key = next.recipes?.key
+        if (key == null) { recipeStack.clear(); return }
+        // A nuvem voltou sozinha a uma tela já vista (ex.: "Alexa, voltar"): descarta o que veio depois.
+        val seen = recipeStack.indexOfLast { it.recipes?.key == key }
+        if (seen >= 0) {
+            while (recipeStack.size > seen) recipeStack.removeLast()
+        } else if (current?.recipes != null) {
+            recipeStack.addLast(current)
+            while (recipeStack.size > 8) recipeStack.removeFirst()
+        }
+    }
+
+    /**
+     * Voltar nas receitas: volta na hora para a tela anterior e avisa a nuvem com `["back"]`
+     * (o NavigateBack dos layouts da cozinha), para "próximo passo" e afins seguirem dali.
+     * [Observado] O voltar do documento APL da Amazon não chegava a sair do app.
+     */
+    /** Gesto de voltar do sistema: dentro das receitas, volta uma tela; true se tratou. */
+    fun systemBackInRecipes(): Boolean {
+        val current = _screen.value as? ShowScreen.Apl ?: return false
+        if (current.recipes == null || recipeStack.isEmpty()) return false
+        recipeBack(current)
+        return true
+    }
+
+    fun recipeBack(screen: ShowScreen.Apl) {
+        sendUserEvent(screen.token, JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive("back"))))
+        stopStepAudio()
+        val previous = recipeStack.removeLastOrNull()
+        if (previous != null) {
+            DiagLog.i("show", "receitas: voltando para ${previous.recipes?.key}")
+            show(previous, null)
+        }
+    }
+
+    /** Fotos por nome de receita, vistas na lista ou no detalhe (o passo a passo vem sem foto). */
+    private val recipeImages = object : LinkedHashMap<String, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 60
+    }
+
+    private fun rememberRecipeImages(view: com.androidshow.alexa.show.recipes.RecipeView?) {
+        val list = when (view) {
+            is com.androidshow.alexa.show.recipes.RecipeView.Results -> view.recipes
+            is com.androidshow.alexa.show.recipes.RecipeView.Detail -> listOf(view.recipe)
+            else -> emptyList()
+        }
+        // A foto do detalhe vale mais que a da lista (dois resultados podem ter o mesmo nome).
+        list.forEach { r -> r.image?.let { if (view is com.androidshow.alexa.show.recipes.RecipeView.Detail || r.title !in recipeImages) recipeImages[r.title] = it } }
+    }
+
+    fun recipeImage(title: String): String? = recipeImages[title]
+
+    private var stepAudio: android.media.MediaPlayer? = null
+
+    /**
+     * Passo escolhido na tela do passo a passo. Faz o que o comando SelectStepAndUpdateContext do
+     * documento faz [Observado no dump]: lê o passo (SpeakItem do stepSpeech) e avisa a nuvem com
+     * `["updateCookAlongOrdinal", ordinal]`, para "próximo passo" continuar dali.
+     */
+    fun selectRecipeStep(screen: ShowScreen.Apl, recipe: com.androidshow.alexa.show.recipes.Recipe, step: Int) {
+        sendUserEvent(screen.token, JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive("updateCookAlongOrdinal"), kotlinx.serialization.json.JsonPrimitive(step + 1))))
+        stopStepAudio()
+        val url = recipe.stepSpeech.getOrNull(step) ?: return
+        stepAudio = runCatching {
+            android.media.MediaPlayer().apply {
+                setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build(),
+                )
+                setDataSource(url)
+                setOnPreparedListener { it.start() }
+                setOnCompletionListener { stopStepAudio() }
+                setOnErrorListener { _, what, extra -> DiagLog.w("show", "áudio do passo falhou: $what/$extra"); stopStepAudio(); true }
+                prepareAsync()
+            }
+        }.onFailure { DiagLog.w("show", "áudio do passo", it) }.getOrNull()
+    }
+
+    private fun stopStepAudio() {
+        stepAudio?.let { runCatching { it.stop() }; it.release() }
+        stepAudio = null
+    }
+
+    private fun sendUserEvent(token: String, json: JsonArray) {
         DiagLog.i("show", "APL UserEvent: ${json.toString().take(300)}")
+        onUserTouch?.invoke()
         scope.launch {
             runCatching {
                 sendEvent?.invoke(avsEvent("Alexa.Presentation.APL", "UserEvent", buildJsonObject {
@@ -249,6 +397,9 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
         if (d.namespace in VISUAL_NAMESPACES) {
             DiagLog.i("show", "${d.key}: ${d.payload.toString().length} bytes")
             DiagLog.dump(d.key, d.payload.toString())
+            if (d.namespace == "Alexa.Presentation.APL") {
+                DiagLog.dump("apl-${(aplDumpSeq++ % APL_DUMPS).toString().padStart(2, '0')}-${d.name}", d.payload.toString())
+            }
         }
         when (d.namespace) {
             "TemplateRuntime" -> when (d.name) {
@@ -260,7 +411,11 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
                 "RenderDocument" -> {
                     val doc = d.payload["document"] as? JsonObject ?: return true
                     // [Inferido] O documento SPA da home chega como APL logo após o HomeStarted.
-                    if (android.os.SystemClock.elapsedRealtime() - homeStartedAt < HOME_DOCUMENT_WINDOW_MS) {
+                    // Só o documento com o pager da home: uma resposta (ex.: lista de receitas) que chegue
+                    // logo após abrir o modo Show era engolida como home [Observado em 2026-11-07 20:14].
+                    val isHomeDocument = android.os.SystemClock.elapsedRealtime() - homeStartedAt < HOME_DOCUMENT_WINDOW_MS &&
+                        doc.toString().contains("\"$HOME_PAGER_ID\"")
+                    if (isHomeDocument) {
                         homeDocument = d.payload
                         DiagLog.dump("home-document", d.payload.toString())
                         DiagLog.i("show", "documento da home (SPA) recebido")
@@ -273,9 +428,40 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
                         "LONG" -> null
                         else -> 30_000L
                     }
-                    show(ShowScreen.Apl(token, doc, d.payload["datasources"] as? JsonObject), timeoutMs)
+                    val apl = ShowScreen.Apl(token, doc, d.payload["datasources"] as? JsonObject)
+                    val recipes = apl.recipes
+                    if (recipes != null) DiagLog.i("show", "receitas nativas: ${recipes::class.simpleName}")
+                    rememberRecipeImages(recipes)
+                    // A cada "próximo passo" a nuvem reenvia o mesmo documento [Observado]: a tela fica
+                    // (sem piscar nem voltar ao passo 1) e só o passo do visualContext é aplicado.
+                    val current = _screen.value as? ShowScreen.Apl
+                    // "Mostrar ingredientes" no passo a passo: abre o painel nativo por cima do passo atual.
+                    val currentCooking = (current?.recipes as? com.androidshow.alexa.show.recipes.RecipeView.Detail)?.takeIf { it.cooking }
+                    if (recipes is com.androidshow.alexa.show.recipes.RecipeView.GenericList && recipes.isIngredients && currentCooking != null) {
+                        _recipeCommands.tryEmit(com.androidshow.alexa.show.recipes.RecipeCommand.OpenIngredientsList)
+                        return true
+                    }
+                    if (recipes != null && current?.recipes?.key == recipes.key) {
+                        (recipes as? com.androidshow.alexa.show.recipes.RecipeView.Detail)?.takeIf { it.cooking }?.let {
+                            _recipeCommands.tryEmit(com.androidshow.alexa.show.recipes.RecipeCommand.GoTo(it.step))
+                        }
+                        return true
+                    }
+                    trackRecipeNavigation(current, apl)
+                    // Receita fica na tela enquanto se cozinha; sai pelo Home ou pelo voltar.
+                    show(apl, if (recipes != null) null else timeoutMs)
                 }
-                "ExecuteCommands" -> Log.i(TAG, "APL ExecuteCommands ainda não suportado: ${d.payload}")
+                "ExecuteCommands" -> {
+                    val current = _screen.value as? ShowScreen.Apl
+                    val token = d.payload.str("presentationToken") ?: d.payload.str("token")
+                    if (current?.recipes != null && (token == null || token == current.token)) {
+                        val cmds = com.androidshow.alexa.show.recipes.RecipeCommand.from(d.payload["commands"] ?: JsonArray(emptyList()))
+                        DiagLog.i("show", "ExecuteCommands nas receitas: $cmds")
+                        cmds.forEach { _recipeCommands.tryEmit(it) }
+                    } else {
+                        Log.i(TAG, "APL ExecuteCommands ainda não suportado: ${d.payload}")
+                    }
+                }
                 else -> return false
             }
             in HOME_NAMESPACES -> {
@@ -322,6 +508,16 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
 
     fun dismiss() {
         timeout?.cancel()
+        stopStepAudio()
+        recipeStack.clear()
+        // O app Windows avisa a nuvem ao fechar um documento [Observado: Alexa.Presentation.Dismissed].
+        (_screen.value as? ShowScreen.Apl)?.token?.takeIf { it.isNotEmpty() }?.let { token ->
+            scope.launch {
+                runCatching {
+                    sendEvent?.invoke(avsEvent("Alexa.Presentation", "Dismissed", buildJsonObject { put("presentationToken", token) }))
+                }.onFailure { DiagLog.w("show", "Dismissed falhou: ${it.message}") }
+            }
+        }
         _screen.value = homeScreen()
     }
 
@@ -373,6 +569,7 @@ class ShowModeController(private val scope: CoroutineScope, private val settings
         val HOME_NAMESPACES = listOf("DEV.Alexa.Presentation.Home", "Alexa.Presentation.Home")
         val VISUAL_NAMESPACES = setOf("TemplateRuntime", "Alexa.Presentation.APL", "Alexa.Display.Window", "Alexa.Display") + HOME_NAMESPACES
         const val HOME_DOCUMENT_WINDOW_MS = 8_000L
+        const val APL_DUMPS = 12
         /** As dicas da home vêm com "{WakeWord}"; o app Windows troca pela palavra antes de desenhar. */
         const val WAKE_WORD_PLACEHOLDER = "{WakeWord}"
         const val WINDOW_ID = "app_window"

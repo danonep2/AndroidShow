@@ -62,6 +62,7 @@ import com.androidshow.alexa.ui.ios.Ios
 import com.androidshow.alexa.graph
 import com.androidshow.alexa.show.apl.Apl
 import com.androidshow.alexa.show.apl.AplDocument
+import com.androidshow.alexa.show.recipes.RecipeScreen
 import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
@@ -107,7 +108,7 @@ class ShowModeActivity : ComponentActivity() {
                                         Box(Modifier.fillMaxSize()) {
                                             // Atrás do APL: aparece na página 0 injetada, que é transparente.
                                             if (s.clock) Clock(weather = s.weather, micButton = config.micButton, wallpaper = wallpaper)
-                                            AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { show.onAplSendEvent("", it) }
+                                            AplDocument(s.document, { if (it == "payload") s.payload else null }, renderKey = s.generation) { args, src -> show.onHomeSendEvent(args, src) }
                                         }
                                     } else {
                                         HomeScreen(s.cards, carousel = s.carousel, clock = s.clock, weather = s.weather, micButton = config.micButton, wallpaper = wallpaper)
@@ -115,12 +116,23 @@ class ShowModeActivity : ComponentActivity() {
                                 }
                                 is ShowScreen.Card -> TemplateCard(s.template)
                                 is ShowScreen.Player -> PlayerCard(s.info)
-                                is ShowScreen.Apl ->
-                                    if (Apl.ready) {
-                                        AplDocument(s.document.toString(), { name -> s.dataFor(name) }) { show.onAplSendEvent(s.token, it) }
+                                is ShowScreen.Apl -> {
+                                    val recipes = s.recipes
+                                    if (recipes != null) {
+                                        RecipeScreen(
+                                            recipes, onSelect = { show.selectRecipe(s, it) },
+                                            onAction = { show.sendRecipeAction(s, it) },
+                                            onNavigateBack = { show.recipeBack(s) },
+                                            onStepSelected = { r, step -> show.selectRecipeStep(s, r, step) },
+                                            commands = show.recipeCommands,
+                                            imageFor = show::recipeImage,
+                                        )
+                                    } else if (Apl.ready) {
+                                        AplDocument(s.document.toString(), { name -> s.dataFor(name) }) { args, _ -> show.onAplSendEvent(s.token, args) }
                                     } else {
                                         AplFallback(s)
                                     }
+                                }
                             }
                         }
                         // Volta à home do próprio modo Show. Fica no canto oposto ao do microfone.
@@ -160,7 +172,11 @@ class ShowModeActivity : ComponentActivity() {
     /** Voltar: de um cartão/resposta para a home do modo Show; da home, sai do modo Show. */
     private fun navigateBack() {
         val show = graph.show
-        if (show.isAwayFromHome) show.dismiss() else finish()
+        when {
+            show.systemBackInRecipes() -> Unit
+            show.isAwayFromHome -> show.dismiss()
+            else -> finish()
+        }
     }
 
     override fun onStart() {

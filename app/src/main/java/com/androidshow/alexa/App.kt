@@ -51,6 +51,7 @@ class AppGraph(val context: Context) {
         alexa.displayHandler = show::handle
         alexa.contextContributors += show::contextItems
         show.sendEvent = alexa::sendEvent
+        show.onUserTouch = alexa::stopSpeaking
     }
 }
 

@@ -114,12 +114,21 @@ class AlexaService(
         scope.launch { dialog.collect { music.duck(it != Dialog.Idle) } }
         // StopCapture precisa agir na hora, mesmo com outra diretiva em andamento.
         scope.launch {
-            avs.directives.collect { d -> if (d.key == "SpeechRecognizer.StopCapture") stopListening() }
+            avs.directives.collect { d ->
+                when {
+                    d.key == "SpeechRecognizer.StopCapture" -> stopListening()
+                    // A tela acompanha a fala: na fila ela só aparecia quando a Alexa terminava de falar
+                    // [Observado: a lista de receitas chegava 5 a 10 s depois, no SpeechFinished].
+                    isImmediateVisual(d) -> if (d.dialogRequestId == null || d.dialogRequestId !in cancelledDialogs) {
+                        runCatching { displayHandler?.invoke(d) }.onFailure { Log.w(TAG, "Falha em ${d.key}", it) }
+                    }
+                }
+            }
         }
         // As demais são processadas em ordem: a fala termina antes do ExpectSpeech abrir o microfone.
         scope.launch {
             avs.directives.collect { d ->
-                if (d.key == "SpeechRecognizer.StopCapture") return@collect
+                if (d.key == "SpeechRecognizer.StopCapture" || isImmediateVisual(d)) return@collect
                 runCatching { handle(d) }.onFailure { Log.w(TAG, "Falha em ${d.key}", it) }
             }
         }
@@ -226,6 +235,15 @@ class AlexaService(
             stopLevel()
             _dialog.value = Dialog.Thinking
         }
+    }
+
+    /** Documentos APL e cartões: desenhados assim que chegam, sem esperar a fala na fila. */
+    private fun isImmediateVisual(d: Directive) =
+        d.namespace == "Alexa.Presentation.APL" || d.key == "TemplateRuntime.RenderTemplate"
+
+    /** Toque numa tela da Alexa: corta a fala em andamento, como o DialogCancellationRequested do app Windows. */
+    fun stopSpeaking() {
+        if (_dialog.value == Dialog.Speaking || speechJob != null) interrupt()
     }
 
     /**
