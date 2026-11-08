@@ -10,7 +10,7 @@ import kotlinx.serialization.json.intOrNull
 /**
  * Comandos APL que a nuvem manda por ExecuteCommands no passo a passo ("Alexa, próximo passo"),
  * traduzidos para a tela nativa. [Inferido] O conteúdo real dos ExecuteCommands ainda não foi
- * capturado (docs/recipes-protocol.md §4): SetPage, ScrollToIndex e SpeakList são os comandos APL
+ * capturado: SetPage, ScrollToIndex e SpeakList são os comandos APL
  * que posicionam uma lista; ScrollToIngredients/ScrollToInstructions são comandos do kitchen_package.
  */
 sealed interface RecipeCommand {

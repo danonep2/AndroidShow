@@ -9,7 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Formatos sintéticos: o real ainda vem do levantamento em docs/recipes-protocol.md. */
+/** Formatos sintéticos: os payloads reais ainda não foram capturados. */
 class RecipesTest {
     private fun obj(s: String) = Http.json.parseToJsonElement(s) as JsonObject
 
@@ -73,7 +73,7 @@ class RecipesTest {
         assertTrue(v.recipes.none { it.hasDetail })
     }
 
-    // --- Nomes reais dos layouts kitchen (docs/recipes-protocol.md §3) ---
+    // --- Nomes reais dos layouts kitchen ---
 
     private val kitchenDoc = obj("""{"type":"APL","import":[{"name":"kitchen_package_07_27_22","version":"1.0"}]}""")
 
