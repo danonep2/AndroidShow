@@ -195,6 +195,20 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
     val custom by context.graph.customWakeWords.words.collectAsStateWithLifecycle()
     var adding by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<CustomWakeWord?>(null) }
+    val listenCue = context.graph.listenCue
+    val cue by listenCue.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val pickSound = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val error = listenCue.setCustom(uri)
+            if (error != null) {
+                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            } else {
+                listenCue.preview()
+                Toast.makeText(context, "Som de escuta alterado", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     fun apply(c: WakeWordConfig) {
         settings.update { c }
@@ -247,6 +261,19 @@ fun VoiceActivationScreen(onBack: () -> Unit) {
             IosRow("Verificar na nuvem", trailing = {
                 IosSwitch(config.cloudVerified) { apply(config.copy(cloudVerified = it)) }
             })
+        }
+        section(
+            header = "Som de escuta",
+            footer = "Toca quando a Alexa começa a ouvir, pela palavra ou pelo toque. Use um áudio curto, de até 5 segundos.",
+        ) {
+            IosRow("Tocar som ao ouvir", trailing = {
+                IosSwitch(cue.enabled) { listenCue.setEnabled(it) }
+            })
+            IosRow("Som", value = if (cue.custom) "Personalizado" else "Padrão", onClick = { pickSound.launch("audio/*") })
+            IosRow("Ouvir som", titleColor = Ios.Tint, chevron = false, onClick = listenCue::preview)
+            if (cue.custom) {
+                IosRow("Voltar ao som padrão", titleColor = Ios.Destructive, centered = true, onClick = listenCue::resetDefault)
+            }
         }
     }
 

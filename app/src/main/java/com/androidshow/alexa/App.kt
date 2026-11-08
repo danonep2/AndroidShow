@@ -41,7 +41,8 @@ class AppGraph(val context: Context) {
     val microphone = Microphone()
     val wakeWord = WakeWordSettings(context)
     val customWakeWords = CustomWakeWords(context)
-    val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope)
+    val listenCue = com.androidshow.alexa.voice.ListenCue(context)
+    val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope, listenCue)
     val showSettings = ShowSettings(context)
     val showWallpaper = ShowWallpaper(context, scope)
     val show = ShowModeController(scope, showSettings).also { show ->

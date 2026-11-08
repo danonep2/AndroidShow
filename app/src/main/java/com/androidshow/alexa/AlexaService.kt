@@ -45,6 +45,7 @@ class AlexaService(
     private val avs: AvsClient,
     private val attachments: Attachments,
     private val scope: CoroutineScope,
+    private val listenCue: com.androidshow.alexa.voice.ListenCue,
 ) {
     enum class Dialog { Idle, Listening, Thinking, Speaking }
 
@@ -196,6 +197,7 @@ class AlexaService(
         microphone.add(levelListener)
         _utterance.value = null
         _dialog.value = Dialog.Listening
+        listenCue.play()
         val payload = buildJsonObject {
             put("profile", "NEAR_FIELD")
             put("format", AudioCapture.FORMAT)
