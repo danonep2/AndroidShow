@@ -37,7 +37,7 @@ import com.androidshow.alexa.show.ShowModeActivity
 import com.androidshow.alexa.voice.wake.WakeWordService
 
 /** Telas do app; [depth] decide o sentido do deslize (empilhar entra pela direita). */
-private enum class Page(val depth: Int) { Home(0), Login(0), Settings(1), Marketplace(1), VoiceActivation(2), ShowMode(2), ShowCategories(3), History(2) }
+private enum class Page(val depth: Int) { Home(0), Login(0), Settings(1), Marketplace(1), VoiceActivation(2), ShowMode(2), ShowCategories(3), History(2), Devices(1), DeviceDetail(2) }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                     val session by graph.auth.session.collectAsStateWithLifecycle()
                     var stack by rememberSaveable { mutableStateOf(debugStartPages()) }
                     var marketplace by rememberSaveable { mutableStateOf(Marketplace.BR) }
+                    var deviceId by rememberSaveable { mutableStateOf(if (BuildConfig.DEBUG) intent.getStringExtra("device") else null) }
                     val loggedIn = session != null
                     // Entrar ou sair volta para a raiz; girar a tela mantém a página.
                     var lastLoggedIn by rememberSaveable { mutableStateOf(loggedIn) }
@@ -84,7 +85,10 @@ class MainActivity : ComponentActivity() {
                                 graph.alexa,
                                 onSettings = { push(Page.Settings) },
                                 onShowMode = { startActivity(Intent(this@MainActivity, ShowModeActivity::class.java)) },
+                                onDevices = { push(Page.Devices) },
                             )
+                            Page.Devices -> DevicesScreen(graph.devices, onBack = ::pop, onOpen = { deviceId = it.id; push(Page.DeviceDetail) })
+                            Page.DeviceDetail -> DeviceDetailScreen(graph.devices, deviceId.orEmpty(), onBack = ::pop)
                             Page.Settings -> if (s != null) SettingsScreen(
                                 s, graph.alexa,
                                 onBack = ::pop,

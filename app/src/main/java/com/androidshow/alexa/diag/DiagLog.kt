@@ -52,7 +52,7 @@ object DiagLog {
 
     private val SECRET_JSON = Regex(
         // O valor pode conter aspas escapadas (cookies x-acbbr/at-acbbr): consome \" até a aspa final.
-        "\"(access_token|refresh_token|device_private_key|adp_token|authorization_code|code_verifier|source_token|Value|token)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\""
+        "\"(access_token|refresh_token|device_private_key|adp_token|authorization_code|code_verifier|source_token|secureSessionToken|Value|token)\"\\s*:\\s*\"(?:[^\"\\\\]|\\\\.)*\""
     )
     private val TOKEN_LITERAL = Regex("(Atz[a-z]\\||Atnr\\|)[^\\s\"&,\\\\]+")
     private val SECRET_PARAM = Regex(

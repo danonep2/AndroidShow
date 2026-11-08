@@ -36,7 +36,7 @@ import com.androidshow.alexa.avs.AvsClient
 
 /** Tela inicial limpa: só o círculo e a onda. Tocar no círculo fala com a Alexa. */
 @Composable
-fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit, onShowMode: () -> Unit) {
+fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit, onShowMode: () -> Unit, onDevices: () -> Unit) {
     val context = LocalContext.current
     val connection by alexa.connection.collectAsStateWithLifecycle()
     val dialog by alexa.dialog.collectAsStateWithLifecycle()
@@ -64,6 +64,7 @@ fun HomeScreen(alexa: AlexaService, onSettings: () -> Unit, onShowMode: () -> Un
                 },
         )
         Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            RoundButton(AppIcons.Devices, "Dispositivos", onDevices)
             RoundButton(AppIcons.Screen, "Modo Show", onShowMode)
             RoundButton(Icons.Filled.Settings, "Ajustes", onSettings)
         }

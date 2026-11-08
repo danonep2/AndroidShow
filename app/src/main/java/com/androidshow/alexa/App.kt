@@ -7,6 +7,8 @@ import com.androidshow.alexa.auth.AuthRepository
 import com.androidshow.alexa.auth.SecureStore
 import com.androidshow.alexa.avs.Attachments
 import com.androidshow.alexa.avs.AvsClient
+import com.androidshow.alexa.devices.DevicesApi
+import com.androidshow.alexa.devices.DevicesRepository
 import com.androidshow.alexa.diag.DiagLog
 import com.androidshow.alexa.net.Http
 import com.androidshow.alexa.show.RemoteImages
@@ -43,6 +45,7 @@ class AppGraph(val context: Context) {
     val customWakeWords = CustomWakeWords(context)
     val listenCue = com.androidshow.alexa.voice.ListenCue(context)
     val alexa = AlexaService(context, http, microphone, auth, AvsClient(http, auth, scope, attachments), attachments, scope, listenCue)
+    val devices = DevicesRepository(DevicesApi(http, auth), scope)
     val showSettings = ShowSettings(context)
     val showWallpaper = ShowWallpaper(context, scope)
     val show = ShowModeController(scope, showSettings).also { show ->
